@@ -1,0 +1,98 @@
+/* app/efecto/efectos.css */
+
+body {
+  /* Transición suave para cambios de color simples */
+  transition: background-color 0.5s ease-in-out;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.efecto-inicial {
+  background-color: #121212; /* Fondo oscuro por defecto */
+}
+
+.efecto-apagon {
+  background-color: black;
+}
+
+.efecto-rojo-pulsante {
+  /* La animación se encargará del color de fondo */
+  animation: pulso-rojo 2s infinite ease-in-out;
+}
+
+@keyframes pulso-rojo {
+  0% {
+    background-color: #200000;
+  }
+  50% {
+    background-color: #ff0000;
+  }
+  100% {
+    background-color: #200000;
+  }
+}
+
+.efecto-arcoiris {
+  /* Para que una animación de gradiente funcione, el background-size
+     debe ser más grande que el elemento, para que haya espacio para moverse. */
+  background-size: 400% 400%;
+  background-image: linear-gradient(
+    -45deg,
+    #ff0000,
+    #ff7300,
+    #fffb00,
+    #48ff00,
+    #00ffd5,
+    #002bff,
+    #7a00ff,
+    #ff00c8
+  );
+  animation: fondo-arcoiris 15s ease infinite;
+}
+
+@keyframes fondo-arcoiris {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: white;
+  font-family: sans-serif;
+  font-size: 2rem;
+}
+
+/* --- NUEVOS ESTILOS AÑADIDOS --- */
+
+.efecto-parpadeo {
+  /* La animación alterna entre blanco y negro */
+  animation: parpadeo-luz 1s infinite;
+}
+
+@keyframes parpadeo-luz {
+  0% {
+    background-color: white;
+  }
+  49% {
+    background-color: white;
+  }
+  50% {
+    background-color: black;
+  }
+  99% {
+    background-color: black;
+  }
+  100% {
+    background-color: white;
+  }
+}
