@@ -2,7 +2,8 @@
 
 /* --- Contenedores Base --- */
 /* Estilos comunes para ambas pantallas (selección y confirmación) */
-.container-seleccion, .container-confirmacion {
+.container-seleccion,
+.container-confirmacion {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -12,14 +13,13 @@
   color: white;
   text-align: center;
   /* Transición suave para cuando el efecto cambie */
-  transition: background-color 0.5s ease-in-out; 
+  transition: background-color 0.5s ease-in-out;
 }
 
 /* Fondo por defecto para la pantalla de selección */
 .container-seleccion {
   background-color: #121212;
 }
-
 
 /* --- Clases de Efectos --- */
 /* Ahora, estas clases se aplican a los contenedores directamente */
@@ -37,23 +37,43 @@
 }
 
 @keyframes pulso-rojo {
-  0% { background-color: #200000; }
-  50% { background-color: #ff0000; }
-  100% { background-color: #200000; }
+  0% {
+    background-color: #200000;
+  }
+  50% {
+    background-color: #ff0000;
+  }
+  100% {
+    background-color: #200000;
+  }
 }
 
 .efecto-arcoiris {
   background-size: 400% 400%;
   background-image: linear-gradient(
-    -45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8
+    -45deg,
+    #ff0000,
+    #ff7300,
+    #fffb00,
+    #48ff00,
+    #00ffd5,
+    #002bff,
+    #7a00ff,
+    #ff00c8
   );
   animation: fondo-arcoiris 15s ease infinite;
 }
 
 @keyframes fondo-arcoiris {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .efecto-parpadeo {
@@ -61,11 +81,18 @@
 }
 
 @keyframes parpadeo-luz {
-  0%, 49% { background-color: white; }
-  50%, 99% { background-color: black; }
-  100% { background-color: white; }
+  0%,
+  49% {
+    background-color: white;
+  }
+  50%,
+  99% {
+    background-color: black;
+  }
+  100% {
+    background-color: white;
+  }
 }
-
 
 /* --- Estilos de la Interfaz (sin cambios) --- */
 
@@ -95,38 +122,224 @@
 }
 
 .celda-seleccion.ocupada {
-  background-color: #8B0000;
+  background-color: #8b0000;
   cursor: not-allowed;
 }
 
 .container-confirmacion h1 {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+  font-size: 3rem;
+  margin-bottom: 1rem;
 }
 
 .luz-indicadora {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background-color: #00ff00;
-    box-shadow: 0 0 20px #00ff00;
-    animation: pulso-verde 2s infinite;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #00ff00;
+  box-shadow: 0 0 20px #00ff00;
+  animation: pulso-verde 2s infinite;
 }
 
 @keyframes pulso-verde {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 10px 20px rgba(0, 255, 0, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 10px 20px rgba(0, 255, 0, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+  }
 }
 
 .boton-salir {
-    margin-top: 2rem;
-    padding: 12px 24px;
-    font-size: 1rem;
-    color: white;
-    background-color: #dc3545;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+  margin-top: 2rem;
+  padding: 12px 24px;
+  font-size: 1rem;
+  color: white;
+  background-color: #dc3545;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+/* app/efectos/efectos.css */
+
+/* --- Contenedores Base --- */
+.container-seleccion,
+.container-confirmacion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  color: white;
+  text-align: center;
+  transition: background-color 0.5s ease-in-out;
+}
+
+.container-seleccion {
+  background-color: #121212;
+}
+
+/* --- Clases de Efectos (sin cambios) --- */
+.efecto-inicial {
+  background-color: #121212;
+}
+.efecto-apagon {
+  background-color: black;
+}
+.efecto-rojo-pulsante {
+  animation: pulso-rojo 2s infinite ease-in-out;
+}
+@keyframes pulso-rojo {
+  0% {
+    background-color: #200000;
+  }
+  50% {
+    background-color: #ff0000;
+  }
+  100% {
+    background-color: #200000;
+  }
+}
+.efecto-arcoiris {
+  background-size: 400% 400%;
+  background-image: linear-gradient(
+    -45deg,
+    #ff0000,
+    #ff7300,
+    #fffb00,
+    #48ff00,
+    #00ffd5,
+    #002bff,
+    #7a00ff,
+    #ff00c8
+  );
+  animation: fondo-arcoiris 15s ease infinite;
+}
+@keyframes fondo-arcoiris {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+.efecto-parpadeo {
+  animation: parpadeo-luz 1s infinite;
+}
+@keyframes parpadeo-luz {
+  0%,
+  49% {
+    background-color: white;
+  }
+  50%,
+  99% {
+    background-color: black;
+  }
+  100% {
+    background-color: white;
+  }
+}
+
+/* --- ¡NUEVO! Contenedor para la información que se oculta --- */
+.info-container {
+  /* Estas 3 líneas centrarán la luz indicadora y el texto */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none;
+}
+.info-container.visible {
+  opacity: 1;
+}
+
+/* --- ¡MODIFICADO! Botón de salir con transición --- */
+.boton-salir {
+  margin-top: 2rem;
+  padding: 12px 24px;
+  font-size: 1rem;
+  color: white;
+  background-color: #dc3545;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+
+  /* Lógica de visibilidad */
+  opacity: 0;
+  pointer-events: none; /* No se puede hacer clic si está invisible */
+  transition: opacity 0.5s ease-in-out;
+}
+.boton-salir.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.boton-salir:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* --- Estilos de la Interfaz (sin cambios) --- */
+.matriz-grid-seleccion {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 500px;
+  margin-top: 2rem;
+  aspect-ratio: 1 / 1;
+}
+.celda-seleccion {
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+.celda-seleccion.libre {
+  background-color: #333;
+}
+.celda-seleccion.libre:hover {
+  background-color: #007bff;
+  transform: scale(1.1);
+}
+.celda-seleccion.ocupada {
+  background-color: #8b0000;
+  cursor: not-allowed;
+}
+.container-confirmacion h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+.luz-indicadora {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #00ff00;
+  box-shadow: 0 0 20px #00ff00;
+  animation: pulso-verde 2s infinite;
+}
+@keyframes pulso-verde {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 10px 20px rgba(0, 255, 0, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+  }
 }
