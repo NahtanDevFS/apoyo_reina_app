@@ -1,39 +1,41 @@
 // app/dashboard/page.tsx
-"use client";
+import { supabase } from "@/lib/supabase"; // Usamos el cliente normal para LEER datos
+import {
+  createMatriz,
+  syncPredefinedEfectos, // ¡Importamos la nueva acción!
+  applyEfectoToCeldas,
+  applyGlobalEfecto,
+  liberarCeldas
+} from "./actions";
+import DashboardClient from "./DashboardClient";
 
-import { supabase } from "@/lib/supabase";
+// Esta página ahora será un Server Component que obtiene los datos iniciales
+export default async function DashboardPage() {
+  // Fetch inicial de datos en el servidor
+  const { data: matrices } = await supabase.from("matrices").select("*");
+  const { data: efectos } = await supabase.from("efectos").select("*");
 
-// ¡Usa la service_role key aquí! porque es una acción de admin.
-// Guárdala en variables de entorno para seguridad.
-
-export default function DashboardPage() {
-  const cambiarEfecto = async (nombreEfecto: string) => {
-    const { error } = await supabase
-      .from("estado_concierto")
-      .update({ efecto_actual: nombreEfecto })
-      .eq("id", 1);
-
-    if (error) {
-      console.error("Error al cambiar el efecto:", error);
-    } else {
-      console.log(`Efecto cambiado a: ${nombreEfecto}`);
-    }
+  // Función para obtener las celdas de una matriz específica
+  const getCeldas = async (matrizId: number) => {
+    "use server"; // Esta función anidada también es una Server Action
+    const { data } = await supabase
+      .from("celdas")
+      .select("*")
+      .eq("matriz_id", matrizId)
+      .order("fila, columna");
+    return data;
   };
 
   return (
-    <div>
-      <h1>Control de Efectos</h1>
-      <button onClick={() => cambiarEfecto("arcoiris")}>
-        Efecto Arcoiris 🌈
-      </button>
-      <button onClick={() => cambiarEfecto("rojo-pulsante")}>
-        Rojo Pulsante ❤️
-      </button>
-      <button onClick={() => cambiarEfecto("apagon")}>Apagón ⬛</button>
-      <button onClick={() => cambiarEfecto("parpadeo")}>
-        Efecto Parpadeo ⚡️
-      </button>
-      <button onClick={() => cambiarEfecto("inicial")}>Resetear</button>
-    </div>
+    <DashboardClient
+      initialMatrices={matrices || []}
+      initialEfectos={efectos || []}
+      getCeldasAction={getCeldas}
+      createMatrizAction={createMatriz}
+      syncEfectosAction={syncPredefinedEfectos} // ¡Pasamos la nueva acción aquí!
+      applyEfectoAction={applyEfectoToCeldas}
+      applyGlobalEfectoAction={applyGlobalEfecto}
+      liberarCeldasAction={liberarCeldas}
+    />
   );
 }
