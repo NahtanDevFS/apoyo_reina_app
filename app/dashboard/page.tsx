@@ -2,10 +2,11 @@
 import { supabase } from "@/lib/supabase"; // Usamos el cliente normal para LEER datos
 import {
   createMatriz,
-  syncPredefinedEfectos, // ¡Importamos la nueva acción!
+  syncPredefinedEfectos,
   applyEfectoToCeldas,
   applyGlobalEfecto,
-  liberarCeldas
+  liberarCeldas,
+  applyLetraToCelda, // ¡1. Importamos la nueva acción!
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
@@ -32,10 +33,11 @@ export default async function DashboardPage() {
       initialEfectos={efectos || []}
       getCeldasAction={getCeldas}
       createMatrizAction={createMatriz}
-      syncEfectosAction={syncPredefinedEfectos} // ¡Pasamos la nueva acción aquí!
+      syncEfectosAction={syncPredefinedEfectos}
       applyEfectoAction={applyEfectoToCeldas}
       applyGlobalEfectoAction={applyGlobalEfecto}
       liberarCeldasAction={liberarCeldas}
+      applyLetraAction={applyLetraToCelda} // ¡2. Pasamos la nueva acción como prop!
     />
   );
 }

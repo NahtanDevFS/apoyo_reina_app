@@ -15,18 +15,19 @@ type Celda = {
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 
 export default function EfectoPage() {
-  const [matriz, setMatriz] = useState<Matriz | null>(null);
+  const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
+  const [selectedMatriz, setSelectedMatriz] = useState<Matriz | null>(null);
   const [celdas, setCeldas] = useState<Celda[]>([]);
   const [celdaId, setCeldaId] = useState<number | null>(null);
   const [efecto, setEfecto] = useState<string>("inicial");
   const [efectoGlobal, setEfectoGlobal] = useState<string>("inicial");
-  const [mensaje, setMensaje] = useState("Cargando matriz...");
-  const [claseCss, setClaseCss] = useState<string>("fondo-seleccion");
+  const [mensaje, setMensaje] = useState("Cargando eventos...");
 
-  // --- ¡NUEVO! --- Estados para controlar la visibilidad de la UI
+  // --- ¡NUEVO! --- Estado para guardar la letra a mostrar
+  const [letra, setLetra] = useState<string | null>(null);
+
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const [isPending, startTransition] = useTransition();
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
@@ -50,14 +51,12 @@ export default function EfectoPage() {
     }
     startTransition(async () => {
       const { data, error } = await supabase.rpc("ocupar_celda_especifica", {
-        matriz_id_in: matriz!.id,
+        matriz_id_in: selectedMatriz!.id,
         fila_in: celda.fila,
         columna_in: celda.columna,
       });
       if (error || !data || data.length === 0) {
-        console.error("Error o celda ya ocupada:", error);
-        alert("Alguien más tomó este lugar. ¡Intenta de nuevo!");
-        cargarMatriz();
+        if (selectedMatriz) cargarCeldasDeMatriz(selectedMatriz);
         return;
       }
       const nuevaCeldaId = data[0].celda_id;
@@ -66,7 +65,7 @@ export default function EfectoPage() {
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
         const { data: celdaInicial } = await supabase
           .from("celdas")
-          .select("efecto_id")
+          .select("efecto_id, letra_asignada")
           .eq("id", nuevaCeldaId)
           .single();
         if (celdaInicial) {
@@ -74,6 +73,7 @@ export default function EfectoPage() {
             celdaInicial.efecto_id
           );
           setEfecto(nombreEfectoInicial);
+          setLetra(celdaInicial.letra_asignada);
         }
       }
     });
@@ -85,50 +85,51 @@ export default function EfectoPage() {
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
       setCeldaId(null);
-      setIsUiVisible(true); // Aseguramos que la UI sea visible en la pantalla de selección
-      cargarMatriz();
+      setIsUiVisible(true);
+      setLetra(null); // Limpiamos la letra al salir
+      cargarTodasLasMatrices();
     });
   };
 
-  const cargarMatriz = async () => {
-    const { data: matrizData, error: matrizError } = await supabase
+  const cargarTodasLasMatrices = async () => {
+    setMensaje("Cargando eventos disponibles...");
+    setSelectedMatriz(null);
+    const { data, error } = await supabase
       .from("matrices")
       .select("*")
-      .eq("id", 1)
-      .single();
-    if (matrizError) return setMensaje("No se pudo cargar la matriz.");
-    setMatriz(matrizData);
+      .order("nombre");
+    if (error) return setMensaje("No se pudieron cargar los eventos.");
+    setAllMatrices(data);
+    setMensaje("Selecciona tu evento o sección");
+  };
+
+  const cargarCeldasDeMatriz = async (matriz: Matriz) => {
+    setMensaje(`Cargando posiciones para ${matriz.nombre}...`);
+    setSelectedMatriz(matriz);
     const { data: celdasData, error: celdasError } = await supabase
       .from("celdas")
       .select("id, fila, columna, estado_celda")
-      .eq("matriz_id", matrizData.id)
+      .eq("matriz_id", matriz.id)
       .order("fila, columna");
     if (celdasError) return setMensaje("No se pudieron cargar las posiciones.");
     setCeldas(celdasData);
-    setMensaje("Elige tu posición en la matriz");
+    setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
-  // --- ¡NUEVO! ---
-  // Función para mostrar la UI temporalmente al tocar la pantalla
   const handleScreenTap = () => {
-    if (uiTimeoutRef.current) {
-      clearTimeout(uiTimeoutRef.current);
-    }
+    if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     setIsUiVisible(true);
-    uiTimeoutRef.current = setTimeout(() => {
-      setIsUiVisible(false);
-    }, 2000); // Se oculta después de 2 segundos
+    uiTimeoutRef.current = setTimeout(() => setIsUiVisible(false), 2000);
   };
 
   useEffect(() => {
     const idGuardado = sessionStorage.getItem("miCeldaId");
     if (idGuardado) {
       setCeldaId(Number(idGuardado));
-      setIsUiVisible(false); // Inicia con la UI oculta si ya tiene una celda
+      setIsUiVisible(false);
     } else {
-      cargarMatriz();
+      cargarTodasLasMatrices();
     }
-    // Limpieza del timeout si el componente se desmonta
     return () => {
       if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     };
@@ -137,26 +138,28 @@ export default function EfectoPage() {
   useEffect(() => {
     if (!celdaId) return;
     const verificarEstado = async () => {
+      // --- ¡MODIFICADO! --- Ahora también pedimos la columna 'letra_asignada'
       const { data: miCeldaData, error: miCeldaError } = await supabase
         .from("celdas")
-        .select("estado_celda, efecto_id")
+        .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
+
       if (miCeldaError || !miCeldaData) {
-        console.error(
-          "No se pudo verificar el estado de la celda. Saliendo...",
-          miCeldaError
-        );
         liberarMiCelda();
         return;
       }
       if (miCeldaData.estado_celda === 0) {
-        console.log("El administrador ha liberado tu posición.");
         liberarMiCelda();
         return;
       }
+
+      // Actualizar el estado de la letra
+      setLetra(miCeldaData.letra_asignada);
+
       const nombreEfectoNuevo = await getNombreEfecto(miCeldaData.efecto_id);
       if (nombreEfectoNuevo !== efecto) setEfecto(nombreEfectoNuevo);
+
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select("efecto_actual")
@@ -168,41 +171,41 @@ export default function EfectoPage() {
     const intervalId = setInterval(verificarEstado, 3000);
     verificarEstado();
     return () => clearInterval(intervalId);
-  }, [celdaId, efecto, efectoGlobal]);
+  }, [celdaId]);
 
-  useEffect(() => {
-    if (!celdaId) {
-      setClaseCss("container-seleccion");
-      return;
-    }
-    const claseEfecto =
-      efectoGlobal && efectoGlobal !== "inicial"
-        ? `efecto-${efectoGlobal}`
-        : `efecto-${efecto}`;
-    setClaseCss(`container-confirmacion ${claseEfecto}`);
-  }, [celdaId, efecto, efectoGlobal]);
+  const claseEfecto =
+    efectoGlobal && efectoGlobal !== "inicial"
+      ? `efecto-${efectoGlobal}`
+      : `efecto-${efecto}`;
 
   if (celdaId) {
-    const isEffectActive = !(
-      efecto === "inicial" && efectoGlobal === "inicial"
-    );
+    // --- ¡NUEVA LÓGICA DE RENDERIZADO! ---
+    // Si el efecto es 'mostrar-letra' y tenemos una letra, mostramos la pantalla especial.
+    if (claseEfecto === "efecto-mostrar-letra" && letra) {
+      return (
+        <div className={`container-letra ${claseEfecto}`}>
+          <span className="letra-display">{letra}</span>
+        </div>
+      );
+    }
+
+    // Si no, mostramos la pantalla de confirmación normal con la lógica de UI visible/invisible.
+    const isEffectActive = claseEfecto !== "efecto-inicial";
+    const showUi = isUiVisible || !isEffectActive;
     return (
-      <div className={claseCss} onClick={handleScreenTap}>
-        {/* --- ¡NUEVO! --- El texto y la luz solo se muestran si la UI es visible O si no hay efecto activo */}
-        <div
-          className={`info-container ${
-            isUiVisible || !isEffectActive ? "visible" : ""
-          }`}
-        >
+      <div
+        className={`container-confirmacion ${claseEfecto}`}
+        onClick={handleScreenTap}
+      >
+        <div className={`info-container ${showUi ? "visible" : ""}`}>
           <h1>¡Listo!</h1>
-          <p>Tu posición está confirmada. Mantén esta ventana abierta.</p>
+          <p>Tu posición está confirmada.</p>
           <div className="luz-indicadora"></div>
         </div>
-        {/* --- ¡NUEVO! --- El botón de salir solo se muestra si la UI es visible */}
         <button
           onClick={liberarMiCelda}
           disabled={isPending}
-          className={`boton-salir ${isUiVisible ? "visible" : ""}`}
+          className={`boton-salir ${showUi ? "visible" : ""}`}
         >
           Salir de la posición
         </button>
@@ -210,14 +213,19 @@ export default function EfectoPage() {
     );
   }
 
-  return (
-    <div className={claseCss}>
-      <h1>{matriz ? matriz.nombre : "Cargando..."}</h1>
-      <p>{mensaje}</p>
-      {matriz && (
+  if (selectedMatriz) {
+    return (
+      <div className="container-seleccion">
+        <button onClick={cargarTodasLasMatrices} className="boton-volver">
+          ← Volver a eventos
+        </button>
+        <h1>{selectedMatriz.nombre}</h1>
+        <p>{mensaje}</p>
         <div
           className="matriz-grid-seleccion"
-          style={{ gridTemplateColumns: `repeat(${matriz.columnas}, 1fr)` }}
+          style={{
+            gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)`,
+          }}
         >
           {celdas.map((celda) => (
             <button
@@ -231,7 +239,25 @@ export default function EfectoPage() {
             />
           ))}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="container-seleccion">
+      <h1>Eventos Disponibles</h1>
+      <p>{mensaje}</p>
+      <div className="lista-matrices">
+        {allMatrices.map((matriz) => (
+          <button
+            key={matriz.id}
+            onClick={() => cargarCeldasDeMatriz(matriz)}
+            className="boton-matriz"
+          >
+            {matriz.nombre}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
