@@ -231,3 +231,18 @@
 .boton-volver:hover {
   background-color: #333;
 }
+
+/* ... (tus estilos existentes) ... */
+
+/* --- ¡ESTILO MODIFICADO! --- */
+/* Ahora solo define la transformación y la sombra, el color se aplica en línea */
+.celda-seleccion.wave-active {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px currentColor; /* Usa el color de texto actual (que será el color de fondo) para el brillo */
+  transition: background-color 0.1s ease-in-out, transform 0.1s ease-in-out;
+}
+
+/* El estilo para la pantalla de confirmación se mantiene igual */
+.efecto-ola-activa {
+  transition: background-color 0.1s ease-in-out;
+}

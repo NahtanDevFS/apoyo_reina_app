@@ -2,32 +2,26 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useSocket } from "@/lib/useSocket";
 import "./Dashboard.css";
 
-// Definimos los tipos directamente en este archivo
+import MatrixSelectionPanel from "./MatrixSelectionPanel";
+import InteractiveGrid from "./InteractiveGrid";
+import ControlPanel from "./ControlPanel";
+
+// Tipos
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type Efecto = { id: number; nombre: string; nombre_css: string };
-type Celda = {
-  id: number;
-  matriz_id: number;
-  fila: number;
-  columna: number;
-  estado_celda: number;
-  efecto_id: number | null;
-  letra_asignada: string | null;
-};
+type Celda = { id: number; matriz_id: number; fila: number; columna: number; estado_celda: number; efecto_id: number | null; letra_asignada: string | null; };
 
-// Props que el componente cliente recibirá
+// Props
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
   createMatrizAction: (formData: FormData) => Promise<any>;
   syncEfectosAction: () => Promise<any>;
-  applyEfectoAction: (
-    celdaIds: number[],
-    efectoId: number | null
-  ) => Promise<any>;
+  applyEfectoAction: (celdaIds: number[], efectoId: number | null) => Promise<any>;
   applyGlobalEfectoAction: (nombreEfecto: string) => Promise<any>;
   liberarCeldasAction: (celdaIds: number[]) => Promise<any>;
   applyLetraAction: (celdaId: number, letra: string) => Promise<any>;
@@ -44,32 +38,45 @@ export default function DashboardClient({
   liberarCeldasAction,
   applyLetraAction,
 }: DashboardClientProps) {
+  
+  const socket = useSocket();
   const [matrices, setMatrices] = useState(initialMatrices);
   const [efectos, setEfectos] = useState(initialEfectos);
-  const [celdasPorMatriz, setCeldasPorMatriz] = useState<
-    Record<number, Celda[]>
-  >({});
+  const [celdasPorMatriz, setCeldasPorMatriz] = useState<Record<number, Celda[]>>({});
+  const [selectedMatrizId, setSelectedMatrizId] = useState<number | null>(initialMatrices[0]?.id || null);
   const [selectedCeldas, setSelectedCeldas] = useState<Set<number>>(new Set());
   const [selectedEfectoId, setSelectedEfectoId] = useState<string>("");
   const [letra, setLetra] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    const fetchAllCeldas = async () => {
-      const allCeldasData: Record<number, Celda[]> = {};
-      for (const matriz of initialMatrices) {
-        const celdas = await getCeldasAction(matriz.id);
-        if (celdas) allCeldasData[matriz.id] = celdas;
-      }
-      setCeldasPorMatriz(allCeldasData);
-    };
-    if (initialMatrices.length > 0) fetchAllCeldas();
-  }, [initialMatrices, getCeldasAction]);
+  // --- ¡NUEVO! --- Estado para rastrear las olas activas
+  const [activeWaveRooms, setActiveWaveRooms] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     setMatrices(initialMatrices);
     setEfectos(initialEfectos);
-  }, [initialMatrices, initialEfectos]);
+    if (!selectedMatrizId && initialMatrices.length > 0) {
+        setSelectedMatrizId(initialMatrices[0].id);
+    }
+  }, [initialMatrices, initialEfectos, selectedMatrizId]);
+
+  useEffect(() => {
+    if (!selectedMatrizId) return;
+    const refreshCeldas = async () => {
+      const updatedCeldas = await getCeldasAction(selectedMatrizId);
+      if (updatedCeldas) {
+        setCeldasPorMatriz(prev => ({ ...prev, [selectedMatrizId]: updatedCeldas }));
+      }
+    };
+    refreshCeldas();
+    const intervalId = setInterval(refreshCeldas, 5000);
+    return () => clearInterval(intervalId);
+  }, [selectedMatrizId, getCeldasAction]);
+
+  const handleSelectMatriz = (id: number) => {
+    setSelectedMatrizId(id);
+    setSelectedCeldas(new Set());
+  }
 
   const handleCeldaClick = (celdaId: number) => {
     const newSelection = new Set(selectedCeldas);
@@ -78,35 +85,22 @@ export default function DashboardClient({
     setSelectedCeldas(newSelection);
   };
 
-  // --- ¡FUNCIÓN CORREGIDA CON MANEJO DE ERRORES! ---
+  const refreshCurrentMatrix = async () => {
+    if (selectedMatrizId) {
+        const updatedCeldas = await getCeldasAction(selectedMatrizId);
+        if (updatedCeldas) {
+            setCeldasPorMatriz(prev => ({ ...prev, [selectedMatrizId]: updatedCeldas }));
+        }
+    }
+  };
+
   const handleApplyLetra = () => {
     if (selectedCeldas.size !== 1 || !letra.trim()) return;
     const celdaId = Array.from(selectedCeldas)[0];
-
     startTransition(async () => {
-      // 1. Llama a la acción del servidor y espera el resultado.
       const result = await applyLetraAction(celdaId, letra);
-
-      // 2. Comprueba si la acción del servidor devolvió un error.
-      if (result && result.error) {
-        // 3. Si hay un error, muéstralo en una alerta y detén la ejecución.
-        alert(`Error al aplicar la letra: ${result.error}`);
-        return;
-      }
-
-      // Si no hubo error, continúa con la actualización de la interfaz.
-      const celdaAfectada = Object.values(celdasPorMatriz)
-        .flat()
-        .find((c) => c.id === celdaId);
-      if (celdaAfectada) {
-        const updatedCeldas = await getCeldasAction(celdaAfectada.matriz_id);
-        if (updatedCeldas) {
-          setCeldasPorMatriz((prev) => ({
-            ...prev,
-            [celdaAfectada.matriz_id]: updatedCeldas,
-          }));
-        }
-      }
+      if (result?.error) return alert(`Error: ${result.error}`);
+      await refreshCurrentMatrix();
       setSelectedCeldas(new Set());
       setLetra("");
     });
@@ -114,22 +108,10 @@ export default function DashboardClient({
 
   const handleApplyEfecto = () => {
     if (selectedCeldas.size === 0 || !selectedEfectoId) return;
-    const efectoId =
-      selectedEfectoId === "ninguno" ? null : Number(selectedEfectoId);
+    const efectoId = selectedEfectoId === 'ninguno' ? null : Number(selectedEfectoId);
     startTransition(async () => {
       await applyEfectoAction(Array.from(selectedCeldas), efectoId);
-      const matricesAfectadasIds = new Set(
-        Object.values(celdasPorMatriz)
-          .flat()
-          .filter((c) => selectedCeldas.has(c.id))
-          .map((c) => c.matriz_id)
-      );
-      const newCeldasState = { ...celdasPorMatriz };
-      for (const id of matricesAfectadasIds) {
-        const updatedCeldas = await getCeldasAction(id);
-        if (updatedCeldas) newCeldasState[id] = updatedCeldas;
-      }
-      setCeldasPorMatriz(newCeldasState);
+      await refreshCurrentMatrix();
       setSelectedCeldas(new Set());
     });
   };
@@ -138,181 +120,90 @@ export default function DashboardClient({
     if (selectedCeldas.size === 0) return;
     startTransition(async () => {
       await liberarCeldasAction(Array.from(selectedCeldas));
-      const matricesAfectadasIds = new Set(
-        Object.values(celdasPorMatriz)
-          .flat()
-          .filter((c) => selectedCeldas.has(c.id))
-          .map((c) => c.matriz_id)
-      );
-      const newCeldasState = { ...celdasPorMatriz };
-      for (const id of matricesAfectadasIds) {
-        const updatedCeldas = await getCeldasAction(id);
-        if (updatedCeldas) newCeldasState[id] = updatedCeldas;
-      }
-      setCeldasPorMatriz(newCeldasState);
+      await refreshCurrentMatrix();
       setSelectedCeldas(new Set());
     });
   };
-
+  
   const handleSyncEfectos = () => {
     startTransition(async () => {
       const result = await syncEfectosAction();
       if (result.success) alert(result.message);
       else if (result.error) alert(`Error: ${result.error}`);
     });
+  }
+  
+  const handleStartWaveEffect = () => {
+    if (!socket || !selectedMatrizId) return;
+    const matrizActual = matrices.find(m => m.id === selectedMatrizId);
+    if (!matrizActual) return;
+    socket.emit("start-wave-effect", {
+      matrizId: matrizActual.id,
+      columns: matrizActual.columnas,
+    });
+    setActiveWaveRooms(prev => new Set(prev).add(matrizActual.id));
+  };
+  
+  const handleStopWaveEffect = () => {
+    if (!socket || !selectedMatrizId) return;
+    socket.emit("stop-wave-effect", { matrizId: selectedMatrizId });
+    setActiveWaveRooms(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(selectedMatrizId);
+        return newSet;
+    });
   };
 
   const isLetraButtonDisabled = () => {
     if (isPending || selectedCeldas.size !== 1 || !letra.trim()) return true;
     const celdaId = Array.from(selectedCeldas)[0];
-    const celda = Object.values(celdasPorMatriz)
-      .flat()
-      .find((c) => c.id === celdaId);
+    const celda = celdasPorMatriz[selectedMatrizId!]?.find(c => c.id === celdaId);
     return !celda || celda.estado_celda !== 1;
   };
 
+  const matrizActual = matrices.find(m => m.id === selectedMatrizId);
+  const celdasActuales = celdasPorMatriz[selectedMatrizId!] || [];
+  const isWaveActiveForCurrentMatriz = selectedMatrizId ? activeWaveRooms.has(selectedMatrizId) : false;
+
   return (
-    <div className="dashboard">
-      <h1>Dashboard de Administrador</h1>
-      <div className="panels">
-        <div className="panel-gestion">
-          <section>
-            <h2>Gestión de Matrices</h2>
-            <form action={createMatrizAction}>
-              <input name="nombre" placeholder="Nombre de la Matriz" required />
-              <input name="filas" type="number" placeholder="Filas" required />
-              <input
-                name="columnas"
-                type="number"
-                placeholder="Columnas"
-                required
-              />
-              <button type="submit">Crear Matriz</button>
-            </form>
-          </section>
-          <section>
-            <h2>Gestión de Efectos</h2>
-            <p>
-              Añade nuevos efectos en <code>efectos.css</code> y sincronízalos.
-            </p>
-            <button onClick={handleSyncEfectos} disabled={isPending}>
-              Sincronizar Efectos Predeterminados
-            </button>
-          </section>
-        </div>
-        <div className="panel-control">
-          <section>
-            <h2>Control de Efectos Globales</h2>
-            <div className="global-controls">
-              {efectos.map((e) => (
-                <button
-                  key={e.id}
-                  onClick={() =>
-                    startTransition(() => applyGlobalEfectoAction(e.nombre_css))
-                  }
-                >
-                  {e.nombre}
-                </button>
-              ))}
-              <button
-                onClick={() =>
-                  startTransition(() => applyGlobalEfectoAction("inicial"))
-                }
-              >
-                Resetear Global
-              </button>
-            </div>
-          </section>
-          <section className="matriz-controls">
-            <h2>Control por Celda</h2>
-            <div className="control-group">
-              <select
-                onChange={(e) => setSelectedEfectoId(e.target.value)}
-                value={selectedEfectoId}
-              >
-                <option disabled value="">
-                  Selecciona un efecto
-                </option>
-                <option value="ninguno">Ninguno (Resetear)</option>
-                {efectos.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleApplyEfecto}
-                disabled={isPending || selectedCeldas.size === 0}
-              >
-                Aplicar a {selectedCeldas.size} celdas
-              </button>
-            </div>
-            <div className="control-group">
-              <button
-                onClick={handleLiberar}
-                disabled={isPending || selectedCeldas.size === 0}
-              >
-                Liberar {selectedCeldas.size} celdas
-              </button>
-            </div>
-            <div className="control-group-letra">
-              <h3>Efecto de Letra (solo 1 celda ocupada)</h3>
-              <input
-                type="text"
-                placeholder="Escribe una letra"
-                maxLength={1}
-                value={letra}
-                onChange={(e) => setLetra(e.target.value)}
-              />
-              <button
-                onClick={handleApplyLetra}
-                disabled={isLetraButtonDisabled()}
-              >
-                Mostrar Letra
-              </button>
-            </div>
-          </section>
-        </div>
+    <div className="dashboard-layout">
+      <div className="dashboard-column left-column">
+        <MatrixSelectionPanel
+          matrices={matrices}
+          selectedMatrizId={selectedMatrizId}
+          onSelectMatriz={handleSelectMatriz}
+          createMatrizAction={createMatrizAction}
+          syncEfectosAction={handleSyncEfectos}
+        />
       </div>
-      <div className="todas-las-matrices">
-        {matrices.map((matriz) => {
-          const celdasDeEstaMatriz = celdasPorMatriz[matriz.id] || [];
-          return (
-            <div className="matriz-container" key={matriz.id}>
-              <h3>{matriz.nombre}</h3>
-              <div
-                className="matriz-grid"
-                style={{
-                  gridTemplateColumns: `repeat(${matriz.columnas}, 1fr)`,
-                }}
-              >
-                {celdasDeEstaMatriz.map((celda) => {
-                  const efectoAplicado = efectos.find(
-                    (e) => e.id === celda.efecto_id
-                  );
-                  return (
-                    <div
-                      key={celda.id}
-                      className={`celda ${
-                        celda.estado_celda === 1 ? "ocupada" : "libre"
-                      } ${selectedCeldas.has(celda.id) ? "seleccionada" : ""} ${
-                        efectoAplicado
-                          ? `efecto-${efectoAplicado.nombre_css}`
-                          : ""
-                      }`}
-                      onClick={() => handleCeldaClick(celda.id)}
-                      title={`Fila: ${celda.fila}, Col: ${celda.columna}`}
-                    >
-                      {celda.letra_asignada && (
-                        <span>{celda.letra_asignada}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      <div className="dashboard-column center-column">
+        <InteractiveGrid
+          matriz={matrizActual}
+          celdas={celdasActuales}
+          efectos={efectos}
+          selectedCeldas={selectedCeldas}
+          onCeldaClick={handleCeldaClick}
+        />
+      </div>
+      <div className="dashboard-column right-column">
+        <ControlPanel
+          efectos={efectos}
+          selectedCeldasCount={selectedCeldas.size}
+          letra={letra}
+          onLetraChange={setLetra}
+          selectedEfectoId={selectedEfectoId}
+          onEfectoChange={setSelectedEfectoId}
+          onApplyEfecto={handleApplyEfecto}
+          onApplyLetra={handleApplyLetra}
+          onLiberar={handleLiberar}
+          onApplyGlobalEfecto={(css) => startTransition(() => applyGlobalEfectoAction(css))}
+          onStartWaveEffect={handleStartWaveEffect}
+          onStopWaveEffect={handleStopWaveEffect}
+          isWaveActive={isWaveActiveForCurrentMatriz}
+          isLetraButtonDisabled={isLetraButtonDisabled()}
+          isWaveButtonDisabled={!selectedMatrizId || !socket}
+          isPending={isPending}
+        />
       </div>
     </div>
   );
