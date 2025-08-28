@@ -1,119 +1,259 @@
 /* app/dashboard/Dashboard.css */
 
-.dashboard {
-  padding: 2rem;
-  font-family: sans-serif;
-  background-color: #f4f7f9;
-  color: #333;
+/* --- Paleta de Colores (Tema Neón Dark) --- */
+:root {
+  --bg-dark: #111827;
+  --bg-panel: #1f2937;
+  --border-color: #374151;
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --accent-primary: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --celda-ocupada: #facc15;
+  --celda-libre: #374151;
+  --celda-seleccionada: #a78bfa;
+  --button-secondary-bg: #374151;
+  --button-secondary-hover-bg: #4b5563;
 }
 
-.dashboard h1 {
-  text-align: center;
-  margin-bottom: 2rem;
-  color: #1a202c;
-}
-
-.panels {
+/* --- Estructura Principal --- */
+.dashboard-layout {
   display: flex;
-  gap: 2rem;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-}
-
-.panel-gestion, .panel-control {
-  flex: 1;
-  min-width: 300px;
-  background: white;
+  gap: 1.5rem;
   padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-secondary);
+  min-height: 100vh;
 }
 
-.panel-gestion section, .panel-control section {
-  margin-bottom: 2rem;
+.dashboard-column { display: flex; flex-direction: column; gap: 1.5rem; }
+.left-column { flex: 0 0 280px; }
+.center-column { flex: 1; }
+.right-column { flex: 0 0 320px; }
+
+/* --- Estilo General de las "Cards" --- */
+.card {
+  background: var(--bg-panel);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.panel-gestion h2, .panel-control h2 {
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 0.5rem;
+.card h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1rem;
   margin-bottom: 1rem;
+  margin-top: 0;
 }
 
-.panel-gestion form {
+/* --- Columna Izquierda: Selección y Gestión --- */
+.matrix-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.matrix-list-item button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-panel);
+  color: var(--text-secondary);
+  text-align: left;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.matrix-list-item button:hover {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: var(--text-primary);
+}
+
+.matrix-list-item button.selected {
+  background-color: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.gestion-container {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-input, textarea, select, button {
+.gestion-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
   padding: 0.75rem;
-  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--border-color);
+  background-color: var(--button-secondary-bg);
+  color: var(--text-secondary);
+}
+
+.gestion-button:hover {
+  background-color: var(--button-secondary-hover-bg);
+  color: var(--text-primary);
+}
+
+.gestion-button svg { width: 16px; height: 16px; }
+
+/* --- Columna Central: Grid Interactivo --- */
+.matriz-grid {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border-color);
+  padding: 6px;
+  aspect-ratio: 1 / 1;
+  max-width: 700px;
+  margin: 0 auto;
+  border-radius: 8px;
+}
+
+.celda {
   border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: var(--celda-libre);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: bold;
 }
 
-textarea {
-  resize: vertical;
-  min-height: 80px;
+.celda.ocupada { background-color: var(--celda-ocupada); color: #422006;}
+.celda.seleccionada {
+  outline: 3px solid var(--celda-seleccionada);
+  transform: scale(1.05);
+  z-index: 10;
+  box-shadow: 0 0 15px var(--celda-seleccionada);
 }
 
-button {
-  background-color: #2563eb;
-  color: white;
+/* --- Columna Derecha: Panel de Control --- */
+.control-panel h3 {
+    font-size: 1rem;
+    margin: 1.5rem 0 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.control-panel .control-group { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.control-panel input, .control-panel select, .control-panel button {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  background-color: #374151;
+  color: var(--text-primary);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.control-panel button {
+  background-color: var(--accent-primary);
+  font-weight: 600;
   border: none;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
-button:hover {
-  background-color: #1d4ed8;
+.control-panel button:hover { background-color: var(--accent-hover); }
+.control-panel button:disabled { background-color: #4b5563; color: #9ca3af; cursor: not-allowed; }
+
+/* --- Estilos del Modal --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 
-button:disabled {
-    background-color: #9ca3af;
-    cursor: not-allowed;
-}
-
-.global-controls, .matriz-controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.matriz-container {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.matriz-grid {
-  display: grid;
-  gap: 5px;
-  margin-top: 1rem;
-  border: 1px solid #ccc;
-  padding: 5px;
-  aspect-ratio: 1 / 1; /* Mantiene la proporción cuadrada */
-  max-width: 600px; /* Limita el tamaño máximo */
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.celda {
+.modal-content {
+  background: var(--bg-panel);
+  padding: 2rem;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
   width: 100%;
-  height: 100%;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: #f7fafc; /* Color por defecto de celda libre */
+  max-width: 450px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
 }
 
-.celda.ocupada {
-  background-color: #fde047; /* Amarillo para indicar ocupado */
+.modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
 }
 
-.celda.seleccionada {
-  outline: 3px solid #2563eb;
-  transform: scale(1.1);
-  z-index: 10;
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    border: none;
+}
+
+.modal-content form { display: flex; flex-direction: column; gap: 1rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.form-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-group input {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.75rem;
+    border-radius: 8px;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.5);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.modal-actions button { flex: 1; }
+.modal-actions .btn-secondary {
+    background-color: var(--button-secondary-bg);
+    color: var(--text-secondary);
+}
+.modal-actions .btn-secondary:hover {
+    background-color: var(--button-secondary-hover-bg);
+    color: var(--text-primary);
 }
