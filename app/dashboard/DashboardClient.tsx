@@ -2,14 +2,15 @@
 "use client";
 
 import { useState, useEffect, useTransition, FormEvent } from "react";
-import { useSocket } from "@/lib/useSocket";
 import "./Dashboard.css";
+// Importamos las nuevas acciones del servidor
+import { advanceWaveEffect, stopWaveEffect } from "./actions";
 
 import MatrixSelectionPanel from "./MatrixSelectionPanel";
 import InteractiveGrid from "./InteractiveGrid";
 import ControlPanel from "./ControlPanel";
 
-// Tipos
+// Tipos y Props (sin cambios)
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type Efecto = { id: number; nombre: string; nombre_css: string };
 type Celda = {
@@ -21,8 +22,6 @@ type Celda = {
   efecto_id: number | null;
   letra_asignada: string | null;
 };
-
-// Props
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
@@ -49,15 +48,10 @@ export default function DashboardClient({
   liberarCeldasAction,
   applyLetraAction,
 }: DashboardClientProps) {
-  // --- CORRECCIÓN: Todos los Hooks se declaran aquí, en el nivel superior ---
-
-  // Estados para la autenticación
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
 
-  // Hooks y estados para el Dashboard
-  const socket = useSocket();
   const [matrices, setMatrices] = useState(initialMatrices);
   const [efectos, setEfectos] = useState(initialEfectos);
   const [celdasPorMatriz, setCeldasPorMatriz] = useState<
@@ -70,11 +64,12 @@ export default function DashboardClient({
   const [selectedEfectoId, setSelectedEfectoId] = useState<string>("");
   const [letra, setLetra] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [activeWaveRooms, setActiveWaveRooms] = useState<Set<number>>(
-    new Set()
-  );
 
-  // --- Todos los useEffect también se declaran aquí ---
+  // --- ¡NUEVO! Estados para controlar el intervalo de la ola ---
+  const [waveIntervalId, setWaveIntervalId] = useState<NodeJS.Timeout | null>(
+    null
+  );
+  const [isWaveActive, setIsWaveActive] = useState(false);
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -92,9 +87,7 @@ export default function DashboardClient({
   }, [initialMatrices, initialEfectos, selectedMatrizId]);
 
   useEffect(() => {
-    // Agregamos una guarda para no ejecutar esto si no estamos autenticados
     if (!isAuthenticated || !selectedMatrizId) return;
-
     const refreshCeldas = async () => {
       const updatedCeldas = await getCeldasAction(selectedMatrizId);
       if (updatedCeldas) {
@@ -107,9 +100,8 @@ export default function DashboardClient({
     refreshCeldas();
     const intervalId = setInterval(refreshCeldas, 5000);
     return () => clearInterval(intervalId);
-  }, [selectedMatrizId, getCeldasAction, isAuthenticated]); // Añadimos isAuthenticated a las dependencias
+  }, [selectedMatrizId, getCeldasAction, isAuthenticated]);
 
-  // Función para manejar el envío de la contraseña
   const handleAuth = (e: FormEvent) => {
     e.preventDefault();
     if (passwordInput === "harvard$1234") {
@@ -122,7 +114,41 @@ export default function DashboardClient({
     }
   };
 
-  // --- El retorno condicional ahora es seguro porque todos los Hooks ya se han llamado ---
+  const handleStopWaveEffect = () => {
+    if (waveIntervalId) {
+      clearInterval(waveIntervalId);
+    }
+    setWaveIntervalId(null);
+    setIsWaveActive(false);
+    startTransition(() => {
+      stopWaveEffect();
+    });
+  };
+
+  const handleStartWaveEffect = () => {
+    if (!selectedMatrizId) return;
+    const matrizActual = matrices.find((m) => m.id === selectedMatrizId);
+    if (!matrizActual) return;
+
+    handleStopWaveEffect(); // Limpia cualquier intervalo anterior
+
+    let column = 0;
+    const interval = setInterval(() => {
+      startTransition(() => {
+        advanceWaveEffect(column, matrizActual.columnas);
+      });
+      column = (column + 1) % matrizActual.columnas;
+    }, 250);
+
+    setWaveIntervalId(interval);
+    setIsWaveActive(true);
+  };
+
+  const handleApplyGlobalEfecto = (css: string) => {
+    handleStopWaveEffect(); // Detiene la ola si se selecciona otro efecto
+    startTransition(() => applyGlobalEfectoAction(css));
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="auth-overlay">
@@ -144,8 +170,6 @@ export default function DashboardClient({
       </div>
     );
   }
-
-  // --- El resto de la lógica y el JSX del componente se mantienen igual ---
 
   const handleSelectMatriz = (id: number) => {
     setSelectedMatrizId(id);
@@ -211,27 +235,6 @@ export default function DashboardClient({
     });
   };
 
-  const handleStartWaveEffect = () => {
-    if (!socket || !selectedMatrizId) return;
-    const matrizActual = matrices.find((m) => m.id === selectedMatrizId);
-    if (!matrizActual) return;
-    socket.emit("start-wave-effect", {
-      matrizId: matrizActual.id,
-      columns: matrizActual.columnas,
-    });
-    setActiveWaveRooms((prev) => new Set(prev).add(matrizActual.id));
-  };
-
-  const handleStopWaveEffect = () => {
-    if (!socket || !selectedMatrizId) return;
-    socket.emit("stop-wave-effect", { matrizId: selectedMatrizId });
-    setActiveWaveRooms((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(selectedMatrizId);
-      return newSet;
-    });
-  };
-
   const isLetraButtonDisabled = () => {
     if (isPending || selectedCeldas.size !== 1 || !letra.trim()) return true;
     const celdaId = Array.from(selectedCeldas)[0];
@@ -243,9 +246,6 @@ export default function DashboardClient({
 
   const matrizActual = matrices.find((m) => m.id === selectedMatrizId);
   const celdasActuales = celdasPorMatriz[selectedMatrizId!] || [];
-  const isWaveActiveForCurrentMatriz = selectedMatrizId
-    ? activeWaveRooms.has(selectedMatrizId)
-    : false;
 
   return (
     <div className="dashboard-layout">
@@ -278,14 +278,12 @@ export default function DashboardClient({
           onApplyEfecto={handleApplyEfecto}
           onApplyLetra={handleApplyLetra}
           onLiberar={handleLiberar}
-          onApplyGlobalEfecto={(css) =>
-            startTransition(() => applyGlobalEfectoAction(css))
-          }
+          onApplyGlobalEfecto={handleApplyGlobalEfecto}
           onStartWaveEffect={handleStartWaveEffect}
           onStopWaveEffect={handleStopWaveEffect}
-          isWaveActive={isWaveActiveForCurrentMatriz}
+          isWaveActive={isWaveActive}
           isLetraButtonDisabled={isLetraButtonDisabled()}
-          isWaveButtonDisabled={!selectedMatrizId || !socket}
+          isWaveButtonDisabled={!selectedMatrizId}
           isPending={isPending}
         />
       </div>

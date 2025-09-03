@@ -4,14 +4,48 @@
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 
-// Cliente de Supabase para el servidor (sin cambios)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// --- ACCIÓN PARA SINCRONIZAR EFECTOS (CORREGIDA) ---
+// --- ¡NUEVO! Acción para avanzar la ola ---
+// El dashboard llamará a esta función repetidamente.
+export async function advanceWaveEffect(column: number, totalColumns: number) {
+  const colors = ["#c62b28", "#16709f"]; // Rojo, Azul
+  const color = colors[column % colors.length];
+
+  // Guardamos el estado de la ola como un objeto JSON en la base de datos
+  const waveState = {
+    type: "ola",
+    column: column,
+    color: color,
+  };
+
+  const { error } = await supabaseAdmin
+    .from("estado_concierto")
+    .update({ efecto_actual: JSON.stringify(waveState) })
+    .eq("id", 1);
+
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+// --- ¡NUEVO! Acción para detener la ola ---
+export async function stopWaveEffect() {
+  const { error } = await supabaseAdmin
+    .from("estado_concierto")
+    .update({ efecto_actual: "inicial" }) // Reseteamos al estado inicial
+    .eq("id", 1);
+
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+// --- El resto de tus acciones existentes ---
+
 export async function syncPredefinedEfectos() {
+  // ... tu código existente
   const predefinedEfectos = [
     {
       nombre: "Apagón",
@@ -45,9 +79,6 @@ export async function syncPredefinedEfectos() {
     },
   ];
 
-  // --- ¡CORRECCIÓN! ---
-  // Usamos .upsert() en lugar de .insert() para manejar los conflictos.
-  // ignoreDuplicates: true asegura que si un efecto con el mismo nombre_css ya existe, no se haga nada.
   const { error } = await supabaseAdmin
     .from("efectos")
     .upsert(predefinedEfectos, {
@@ -64,8 +95,8 @@ export async function syncPredefinedEfectos() {
   return { success: true, message: "Efectos sincronizados correctamente." };
 }
 
-// --- ACCIÓN PARA MOSTRAR LA LETRA (sin cambios) ---
 export async function applyLetraToCelda(celdaId: number, letra: string) {
+  // ... tu código existente
   const { data: efecto, error: efectoError } = await supabaseAdmin
     .from("efectos")
     .select("id")
@@ -94,11 +125,11 @@ export async function applyLetraToCelda(celdaId: number, letra: string) {
   return { success: true };
 }
 
-// --- ACCIONES EXISTENTES (sin cambios) ---
 export async function applyEfectoToCeldas(
   celdaIds: number[],
   efectoId: number | null
 ) {
+  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({
@@ -114,6 +145,7 @@ export async function applyEfectoToCeldas(
 }
 
 export async function liberarCeldas(celdaIds: number[]) {
+  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({ estado_celda: 0, letra_asignada: null, efecto_id: null })
@@ -125,6 +157,7 @@ export async function liberarCeldas(celdaIds: number[]) {
 }
 
 export async function createMatriz(formData: FormData) {
+  // ... tu código existente
   const nombre = formData.get("nombre") as string;
   const filas = Number(formData.get("filas"));
   const columnas = Number(formData.get("columnas"));
@@ -156,6 +189,7 @@ export async function createMatriz(formData: FormData) {
 }
 
 export async function applyGlobalEfecto(nombreEfecto: string) {
+  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("estado_concierto")
     .update({ efecto_actual: nombreEfecto })
