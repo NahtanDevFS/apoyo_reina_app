@@ -1,79 +1,84 @@
 // pages/api/socket.ts
 import { Server, Socket } from "socket.io";
-import type { NextApiRequest, NextApiResponse } from "next";
 import type { Server as HTTPServer } from "http";
+import type { NextApiRequest, NextApiResponse } from "next";
 import type { Socket as NetSocket } from "net";
-import type { Server as IOServer } from "socket.io";
 
+// Interfaz para extender la respuesta de la API
 interface NextApiResponseWithSocket extends NextApiResponse {
   socket: NetSocket & {
     server: HTTPServer & {
-      io?: IOServer;
+      io?: Server;
     };
   };
 }
 
-const activeAnimations: Record<string, NodeJS.Timeout> = {};
+// Objeto para almacenar los intervalos de las olas por matriz
+const waveIntervals: Record<number, NodeJS.Timeout> = {};
 
-// --- ¡NUEVO! --- Paleta de colores para la ola
-const waveColors = ['#c62b28', '#16709f']; // Rojo, Azul
-
-export default function handler(req: NextApiRequest, res: NextApiResponseWithSocket) {
+export default function handler(
+  req: NextApiRequest,
+  res: NextApiResponseWithSocket
+) {
   if (res.socket.server.io) {
-    console.log("Socket.IO server is already running.");
+    console.log("Socket.IO server already running.");
   } else {
-    console.log("Initializing Socket.IO server...");
+    console.log("Starting Socket.IO server.");
     const io = new Server(res.socket.server);
     res.socket.server.io = io;
 
     io.on("connection", (socket: Socket) => {
-      console.log(`New client connected: ${socket.id}`);
+      console.log(`Client connected: ${socket.id}`);
 
       socket.on("join-matrix-room", (matrizId: number) => {
-        const roomName = `matrix-${matrizId}`;
-        socket.join(roomName);
-        console.log(`Client ${socket.id} joined room ${roomName}`);
+        socket.join(`matrix-${matrizId}`);
+        console.log(`Client ${socket.id} joined room matrix-${matrizId}`);
       });
 
-      socket.on("start-wave-effect", ({ matrizId, columns }: { matrizId: number, columns: number }) => {
-        const roomName = `matrix-${matrizId}`;
-        console.log(`Starting wave effect for room ${roomName}`);
-
-        if (activeAnimations[roomName]) {
-          clearInterval(activeAnimations[roomName]);
+      socket.on("start-wave-effect", ({ matrizId, columns }) => {
+        // Si ya hay una ola en esta matriz, la detenemos primero
+        if (waveIntervals[matrizId]) {
+          clearInterval(waveIntervals[matrizId]);
         }
 
-        let currentStep = 0;
-        const totalSteps = columns + 1; 
+        let currentColumn = 0;
+        const colors = ["#c62b28", "#16709f"]; // Rojo, Azul
+        const intervalSpeed = 250; // Aumentamos un poco el tiempo entre fotogramas
 
-        const interval = setInterval(() => {
-          const columnToSend = currentStep < columns ? currentStep : null;
-          
-          // --- ¡LÓGICA DE COLOR AÑADIDA! ---
-          // Calculamos qué color usar basándonos en si el paso es par o impar.
-          const colorIndex = currentStep % waveColors.length;
-          const colorToSend = waveColors[colorIndex];
+        waveIntervals[matrizId] = setInterval(() => {
+          const room = `matrix-${matrizId}`;
+          const color = colors[currentColumn % colors.length];
 
-          // Enviamos la columna Y el color.
-          io.to(roomName).emit("wave-update", { 
-            highlightedColumn: columnToSend,
-            color: colorToSend 
+          // --- ¡LÓGICA DE SINCRONIZACIÓN! ---
+          // Calculamos un tiempo futuro para renderizar el fotograma.
+          // Este buffer de 200ms da tiempo a que el mensaje llegue a todos los clientes.
+          const renderTime = Date.now() + 200;
+
+          io.to(room).emit("wave-update", {
+            highlightedColumn: currentColumn,
+            color: color,
+            renderTime: renderTime, // Enviamos el tiempo de renderizado
           });
 
-          currentStep = (currentStep + 1) % totalSteps;
-
-        }, 1000); // Puedes ajustar la velocidad aquí
-
-        activeAnimations[roomName] = interval;
+          currentColumn++;
+          if (currentColumn >= columns) {
+            currentColumn = 0; // Reinicia el bucle
+          }
+        }, intervalSpeed);
       });
 
-      socket.on("stop-wave-effect", ({ matrizId }: { matrizId: number }) => {
-        const roomName = `matrix-${matrizId}`;
-        console.log(`Stopping wave effect for room ${roomName}`);
-        if (activeAnimations[roomName]) {
-          clearInterval(activeAnimations[roomName]);
-          delete activeAnimations[roomName];
-          io.to(roomName).emit("wave-update", { highlightedColumn: null, color: null });
+      socket.on("stop-wave-effect", ({ matrizId }) => {
+        if (waveIntervals[matrizId]) {
+          clearInterval(waveIntervals[matrizId]);
+          delete waveIntervals[matrizId];
+          // Enviamos un último mensaje para apagar la ola en todos los clientes
+          const renderTime = Date.now() + 200;
+          io.to(`matrix-${matrizId}`).emit("wave-update", {
+            highlightedColumn: null,
+            color: null,
+            renderTime: renderTime,
+          });
+          console.log(`Wave stopped for matrix ${matrizId}`);
         }
       });
 

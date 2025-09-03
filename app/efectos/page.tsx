@@ -186,15 +186,26 @@ export default function EfectoPage() {
   useEffect(() => {
     if (!socket || !selectedMatriz) return;
     socket.emit("join-matrix-room", selectedMatriz.id);
-    const handleWaveUpdate = ({
-      highlightedColumn,
-      color,
-    }: {
+
+    const handleWaveUpdate = (payload: {
       highlightedColumn: number | null;
       color: string | null;
+      renderTime: number;
     }) => {
-      setWaveState({ column: highlightedColumn, color: color });
+      const { highlightedColumn, color, renderTime } = payload;
+
+      // Calculamos el retraso necesario para sincronizar
+      const delay = renderTime - Date.now();
+
+      // Usamos setTimeout para actualizar el estado en el momento preciso
+      setTimeout(
+        () => {
+          setWaveState({ column: highlightedColumn, color: color });
+        },
+        delay > 0 ? delay : 0
+      ); // Si el delay es negativo (mensaje tardío), se ejecuta ya.
     };
+
     socket.on("wave-update", handleWaveUpdate);
     return () => {
       socket.off("wave-update", handleWaveUpdate);
