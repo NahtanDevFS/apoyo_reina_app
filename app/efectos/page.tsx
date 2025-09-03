@@ -19,13 +19,20 @@ export default function EfectoPage() {
   const [selectedMatriz, setSelectedMatriz] = useState<Matriz | null>(null);
   const [celdas, setCeldas] = useState<Celda[]>([]);
   const [celdaId, setCeldaId] = useState<number | null>(null);
+  const [miCeldaInfo, setMiCeldaInfo] = useState<{
+    fila: number;
+    columna: number;
+  } | null>(null);
   const [efecto, setEfecto] = useState<string>("inicial");
   const [efectoGlobal, setEfectoGlobal] = useState<string>("inicial");
   const [letra, setLetra] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("Cargando eventos...");
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // --- Referencia para el Wake Lock ---
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
   const [isPending, startTransition] = useTransition();
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
@@ -55,7 +62,12 @@ export default function EfectoPage() {
       const nuevaCeldaId = data[0].celda_id;
       if (nuevaCeldaId) {
         setCeldaId(nuevaCeldaId);
+        setMiCeldaInfo({ fila: celda.fila, columna: celda.columna });
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
+        sessionStorage.setItem(
+          "miCeldaInfo",
+          JSON.stringify({ fila: celda.fila, columna: celda.columna })
+        );
         const { data: celdaInicial } = await supabase
           .from("celdas")
           .select("efecto_id, letra_asignada")
@@ -74,7 +86,9 @@ export default function EfectoPage() {
     startTransition(async () => {
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
+      sessionStorage.removeItem("miCeldaInfo");
       setCeldaId(null);
+      setMiCeldaInfo(null);
       setIsUiVisible(true);
       setLetra(null);
       cargarTodasLasMatrices();
@@ -114,8 +128,10 @@ export default function EfectoPage() {
 
   useEffect(() => {
     const idGuardado = sessionStorage.getItem("miCeldaId");
-    if (idGuardado) {
+    const infoGuardada = sessionStorage.getItem("miCeldaInfo");
+    if (idGuardado && infoGuardada) {
       setCeldaId(Number(idGuardado));
+      setMiCeldaInfo(JSON.parse(infoGuardada));
       setIsUiVisible(false);
     } else {
       cargarTodasLasMatrices();
@@ -125,25 +141,45 @@ export default function EfectoPage() {
     };
   }, []);
 
+  // --- ¡CORRECCIÓN! useEffect mejorado para mantener la pantalla encendida ---
   useEffect(() => {
     const requestWakeLock = async () => {
-      if ("wakeLock" in navigator) {
+      if ("wakeLock" in navigator && celdaId) {
         try {
           wakeLockRef.current = await navigator.wakeLock.request("screen");
+          console.log("Screen Wake Lock activado.");
         } catch (err: any) {
-          console.error(`${err.name}, ${err.message}`);
+          console.error(
+            `No se pudo activar el Wake Lock: ${err.name}, ${err.message}`
+          );
         }
       }
     };
-    if (celdaId) {
-      requestWakeLock();
-    }
-    return () => {
+
+    const releaseWakeLock = async () => {
       if (wakeLockRef.current) {
-        wakeLockRef.current.release().then(() => {
-          wakeLockRef.current = null;
-        });
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log("Screen Wake Lock liberado.");
       }
+    };
+
+    // Activa el lock cuando el usuario entra en modo efecto
+    requestWakeLock();
+
+    // Vuelve a activarlo si el usuario cambia de pestaña y regresa
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Limpieza: se ejecuta cuando el usuario sale del modo efecto (celdaId cambia a null)
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [celdaId]);
 
@@ -155,12 +191,13 @@ export default function EfectoPage() {
         .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
-      if (!miCeldaData || miCeldaData.estado_celda === 0) {
+      if (!miCeldaData || miCeldaData.estado_celda === 0)
         return liberarMiCelda();
-      }
+
       setLetra(miCeldaData.letra_asignada);
       const nombreEfectoNuevo = await getNombreEfecto(miCeldaData.efecto_id);
       if (nombreEfectoNuevo !== efecto) setEfecto(nombreEfectoNuevo);
+
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select("efecto_actual")
@@ -170,7 +207,7 @@ export default function EfectoPage() {
         setEfectoGlobal(globalData.efecto_actual || "inicial");
       }
     };
-    const intervalId = setInterval(verificarEstado, 1000); // 1 segundo de polling es suficiente
+    const intervalId = setInterval(verificarEstado, 1000);
     verificarEstado();
     return () => clearInterval(intervalId);
   }, [celdaId, efecto, efectoGlobal]);
