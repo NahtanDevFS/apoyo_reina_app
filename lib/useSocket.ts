@@ -3,28 +3,24 @@
 import { useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-// --- ¡CORRECCIÓN AQUÍ! ---
-// Leemos la variable de entorno para obtener la URL de nuestra aplicación.
-// NEXT_PUBLIC_URL es una variable que debes configurar en Vercel.
-// Si no está definida (como en el entorno local), usamos una cadena vacía.
+// Se lee la variable de entorno de Vercel. Si no existe (en local), usa una cadena vacía.
 const URL = process.env.NEXT_PUBLIC_URL || "";
+
+// Se define la ruta como una constante para asegurar que coincida con la del servidor.
+const SOCKET_PATH = "/api/socket";
 
 export const useSocket = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // Ya no es necesario el fetch a /api/socket. La conexión directa es más fiable.
-
-    // Creamos la instancia del cliente de socket, pasándole la URL explícitamente.
-    // En local, URL será '' y se conectará al host actual.
-    // En Vercel, usará la URL de producción que hayas configurado.
+    // Se crea la instancia del socket con la URL y la ruta explícitas.
     const newSocket = io(URL, {
-      path: "/api/socket", // Nos aseguramos que se conecte a la ruta correcta de la API
-      addTrailingSlash: false, // Evita problemas de slash duplicado en la URL
+      path: SOCKET_PATH,
+      addTrailingSlash: false,
     });
 
     newSocket.on("connect", () => {
-      console.log("Socket connected to server!");
+      console.log("Socket connected successfully to server!");
       setSocket(newSocket);
     });
 
@@ -33,11 +29,16 @@ export const useSocket = () => {
       setSocket(null);
     });
 
+    // Este listener es clave para depurar errores de conexión en producción.
     newSocket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err.message);
+      console.error("Socket connection error:", {
+        message: err.message,
+        url: URL,
+        path: SOCKET_PATH,
+      });
     });
 
-    // Limpieza: nos aseguramos de desconectar el socket cuando el componente se desmonte.
+    // Limpieza al desmontar el componente.
     return () => {
       newSocket.disconnect();
     };
