@@ -30,6 +30,12 @@ export default function handler(
     io.on("connection", (socket: Socket) => {
       console.log(`Client connected: ${socket.id}`);
 
+      // --- ¡NUEVO! Listener para la sincronización de reloj ---
+      // Cuando un cliente pida la hora, se la enviamos de inmediato.
+      socket.on("request-server-time", () => {
+        socket.emit("server-time", Date.now());
+      });
+
       socket.on("join-matrix-room", (matrizId: number) => {
         socket.join(`matrix-${matrizId}`);
         console.log(`Client ${socket.id} joined room matrix-${matrizId}`);

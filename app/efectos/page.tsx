@@ -39,6 +39,9 @@ export default function EfectoPage() {
   // --- ¡NUEVO! --- Ref para guardar el objeto del Wake Lock
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
+  // --- ¡NUEVO! Estado para almacenar la diferencia con el reloj del servidor ---
+  const [clockOffset, setClockOffset] = useState<number>(0);
+
   const [isPending, startTransition] = useTransition();
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
@@ -183,10 +186,25 @@ export default function EfectoPage() {
     };
   }, [celdaId]);
 
+  // --- useEffect para el manejo de Sockets (MODIFICADO) ---
   useEffect(() => {
-    if (!socket || !selectedMatriz) return;
-    socket.emit("join-matrix-room", selectedMatriz.id);
+    if (!socket) return;
 
+    // --- 1. Sincronización de Reloj ---
+    // Pedimos la hora al servidor para calcular nuestro offset.
+    socket.emit("request-server-time");
+    socket.on("server-time", (serverTime: number) => {
+      const clientTime = Date.now();
+      const offset = serverTime - clientTime;
+      setClockOffset(offset);
+      console.log(`Diferencia de reloj con el servidor: ${offset}ms`);
+    });
+
+    if (selectedMatriz) {
+      socket.emit("join-matrix-room", selectedMatriz.id);
+    }
+
+    // --- 2. Manejador de la Ola (MODIFICADO) ---
     const handleWaveUpdate = (payload: {
       highlightedColumn: number | null;
       color: string | null;
@@ -194,23 +212,26 @@ export default function EfectoPage() {
     }) => {
       const { highlightedColumn, color, renderTime } = payload;
 
-      // Calculamos el retraso necesario para sincronizar
-      const delay = renderTime - Date.now();
+      // Calculamos la "hora actual" del servidor usando nuestro offset
+      const serverTimeNow = Date.now() + clockOffset;
+      // El delay ahora es mucho más preciso porque considera la diferencia de relojes
+      const delay = renderTime - serverTimeNow;
 
-      // Usamos setTimeout para actualizar el estado en el momento preciso
       setTimeout(
         () => {
           setWaveState({ column: highlightedColumn, color: color });
         },
         delay > 0 ? delay : 0
-      ); // Si el delay es negativo (mensaje tardío), se ejecuta ya.
+      );
     };
 
     socket.on("wave-update", handleWaveUpdate);
+
     return () => {
       socket.off("wave-update", handleWaveUpdate);
+      socket.off("server-time"); // Limpiamos el listener de tiempo
     };
-  }, [socket, selectedMatriz]);
+  }, [socket, selectedMatriz, clockOffset]); // Agregamos clockOffset a las dependencias
 
   useEffect(() => {
     if (!celdaId) return;
