@@ -3,14 +3,12 @@
 
 import { useState, useEffect, useTransition, FormEvent } from "react";
 import "./Dashboard.css";
-// Importamos las nuevas acciones del servidor
-import { advanceWaveEffect, stopWaveEffect } from "./actions";
 
 import MatrixSelectionPanel from "./MatrixSelectionPanel";
 import InteractiveGrid from "./InteractiveGrid";
 import ControlPanel from "./ControlPanel";
 
-// Tipos y Props (sin cambios)
+// Tipos y Props
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type Efecto = { id: number; nombre: string; nombre_css: string };
 type Celda = {
@@ -48,10 +46,12 @@ export default function DashboardClient({
   liberarCeldasAction,
   applyLetraAction,
 }: DashboardClientProps) {
+  // Estados de autenticación (sin cambios)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
 
+  // Estados del dashboard
   const [matrices, setMatrices] = useState(initialMatrices);
   const [efectos, setEfectos] = useState(initialEfectos);
   const [celdasPorMatriz, setCeldasPorMatriz] = useState<
@@ -65,11 +65,7 @@ export default function DashboardClient({
   const [letra, setLetra] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  // --- ¡NUEVO! Estados para controlar el intervalo de la ola ---
-  const [waveIntervalId, setWaveIntervalId] = useState<NodeJS.Timeout | null>(
-    null
-  );
-  const [isWaveActive, setIsWaveActive] = useState(false);
+  // Se eliminan los estados relacionados con Sockets y la ola (socket, activeWaveRooms, waveIntervalId, etc.)
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -112,41 +108,6 @@ export default function DashboardClient({
       setAuthError("Contraseña incorrecta. Inténtalo de nuevo.");
       setPasswordInput("");
     }
-  };
-
-  const handleStopWaveEffect = () => {
-    if (waveIntervalId) {
-      clearInterval(waveIntervalId);
-    }
-    setWaveIntervalId(null);
-    setIsWaveActive(false);
-    startTransition(() => {
-      stopWaveEffect();
-    });
-  };
-
-  const handleStartWaveEffect = () => {
-    if (!selectedMatrizId) return;
-    const matrizActual = matrices.find((m) => m.id === selectedMatrizId);
-    if (!matrizActual) return;
-
-    handleStopWaveEffect(); // Limpia cualquier intervalo anterior
-
-    let column = 0;
-    const interval = setInterval(() => {
-      startTransition(() => {
-        advanceWaveEffect(column, matrizActual.columnas);
-      });
-      column = (column + 1) % matrizActual.columnas;
-    }, 250);
-
-    setWaveIntervalId(interval);
-    setIsWaveActive(true);
-  };
-
-  const handleApplyGlobalEfecto = (css: string) => {
-    handleStopWaveEffect(); // Detiene la ola si se selecciona otro efecto
-    startTransition(() => applyGlobalEfectoAction(css));
   };
 
   if (!isAuthenticated) {
@@ -278,12 +239,10 @@ export default function DashboardClient({
           onApplyEfecto={handleApplyEfecto}
           onApplyLetra={handleApplyLetra}
           onLiberar={handleLiberar}
-          onApplyGlobalEfecto={handleApplyGlobalEfecto}
-          onStartWaveEffect={handleStartWaveEffect}
-          onStopWaveEffect={handleStopWaveEffect}
-          isWaveActive={isWaveActive}
+          onApplyGlobalEfecto={(css) =>
+            startTransition(() => applyGlobalEfectoAction(css))
+          }
           isLetraButtonDisabled={isLetraButtonDisabled()}
-          isWaveButtonDisabled={!selectedMatrizId}
           isPending={isPending}
         />
       </div>

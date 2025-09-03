@@ -9,43 +9,7 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// --- ¡NUEVO! Acción para avanzar la ola ---
-// El dashboard llamará a esta función repetidamente.
-export async function advanceWaveEffect(column: number, totalColumns: number) {
-  const colors = ["#c62b28", "#16709f"]; // Rojo, Azul
-  const color = colors[column % colors.length];
-
-  // Guardamos el estado de la ola como un objeto JSON en la base de datos
-  const waveState = {
-    type: "ola",
-    column: column,
-    color: color,
-  };
-
-  const { error } = await supabaseAdmin
-    .from("estado_concierto")
-    .update({ efecto_actual: JSON.stringify(waveState) })
-    .eq("id", 1);
-
-  if (error) return { error: error.message };
-  return { success: true };
-}
-
-// --- ¡NUEVO! Acción para detener la ola ---
-export async function stopWaveEffect() {
-  const { error } = await supabaseAdmin
-    .from("estado_concierto")
-    .update({ efecto_actual: "inicial" }) // Reseteamos al estado inicial
-    .eq("id", 1);
-
-  if (error) return { error: error.message };
-  return { success: true };
-}
-
-// --- El resto de tus acciones existentes ---
-
 export async function syncPredefinedEfectos() {
-  // ... tu código existente
   const predefinedEfectos = [
     {
       nombre: "Apagón",
@@ -77,6 +41,12 @@ export async function syncPredefinedEfectos() {
       nombre_css: "mostrar-letra",
       descripcion: "Muestra una letra específica en pantalla.",
     },
+    // --- ¡NUEVO! Efecto Ola añadido a la lista ---
+    {
+      nombre: "Efecto Ola",
+      nombre_css: "ola",
+      descripcion: "Una ola de colores azul y rojo.",
+    },
   ];
 
   const { error } = await supabaseAdmin
@@ -96,20 +66,16 @@ export async function syncPredefinedEfectos() {
 }
 
 export async function applyLetraToCelda(celdaId: number, letra: string) {
-  // ... tu código existente
   const { data: efecto, error: efectoError } = await supabaseAdmin
     .from("efectos")
     .select("id")
     .eq("nombre_css", "mostrar-letra")
     .single();
-
   if (efectoError || !efecto) {
     return {
-      error:
-        "El efecto 'Mostrar Letra' no existe. Sincroniza los efectos desde el dashboard.",
+      error: "El efecto 'Mostrar Letra' no existe. Sincroniza los efectos.",
     };
   }
-
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({
@@ -118,9 +84,7 @@ export async function applyLetraToCelda(celdaId: number, letra: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", celdaId);
-
   if (error) return { error: error.message };
-
   revalidatePath("/dashboard");
   return { success: true };
 }
@@ -129,7 +93,6 @@ export async function applyEfectoToCeldas(
   celdaIds: number[],
   efectoId: number | null
 ) {
-  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({
@@ -138,26 +101,22 @@ export async function applyEfectoToCeldas(
       updated_at: new Date().toISOString(),
     })
     .in("id", celdaIds);
-
   if (error) return { error: error.message };
   revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function liberarCeldas(celdaIds: number[]) {
-  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({ estado_celda: 0, letra_asignada: null, efecto_id: null })
     .in("id", celdaIds);
-
   if (error) return { error: error.message };
   revalidatePath("/dashboard");
   return { success: true };
 }
 
 export async function createMatriz(formData: FormData) {
-  // ... tu código existente
   const nombre = formData.get("nombre") as string;
   const filas = Number(formData.get("filas"));
   const columnas = Number(formData.get("columnas"));
@@ -189,7 +148,6 @@ export async function createMatriz(formData: FormData) {
 }
 
 export async function applyGlobalEfecto(nombreEfecto: string) {
-  // ... tu código existente
   const { error } = await supabaseAdmin
     .from("estado_concierto")
     .update({ efecto_actual: nombreEfecto })
