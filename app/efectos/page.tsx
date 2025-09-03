@@ -35,13 +35,8 @@ export default function EfectoPage() {
   const [mensaje, setMensaje] = useState("Cargando eventos...");
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // --- ¡NUEVO! --- Ref para guardar el objeto del Wake Lock
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-
-  // --- ¡NUEVO! Estado para almacenar la diferencia con el reloj del servidor ---
   const [clockOffset, setClockOffset] = useState<number>(0);
-
   const [isPending, startTransition] = useTransition();
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
@@ -138,7 +133,6 @@ export default function EfectoPage() {
     uiTimeoutRef.current = setTimeout(() => setIsUiVisible(false), 2000);
   };
 
-  // --- useEffects ---
   useEffect(() => {
     const idGuardado = sessionStorage.getItem("miCeldaId");
     const infoGuardada = sessionStorage.getItem("miCeldaInfo");
@@ -154,69 +148,51 @@ export default function EfectoPage() {
     };
   }, []);
 
-  // --- ¡NUEVO! --- useEffect para manejar el Screen Wake Lock
   useEffect(() => {
-    // Función para solicitar el bloqueo de pantalla
     const requestWakeLock = async () => {
       if ("wakeLock" in navigator) {
         try {
           wakeLockRef.current = await navigator.wakeLock.request("screen");
-          console.log("Screen Wake Lock activado.");
         } catch (err: any) {
           console.error(`${err.name}, ${err.message}`);
         }
-      } else {
-        console.warn("Screen Wake Lock API no es soportada en este navegador.");
       }
     };
-
-    // Si el usuario tiene una celda asignada, activamos el bloqueo
     if (celdaId) {
       requestWakeLock();
     }
-
-    // Función de limpieza: se ejecuta cuando el usuario sale de la celda
     return () => {
       if (wakeLockRef.current) {
         wakeLockRef.current.release().then(() => {
           wakeLockRef.current = null;
-          console.log("Screen Wake Lock liberado.");
         });
       }
     };
   }, [celdaId]);
 
-  // --- useEffect para el manejo de Sockets (MODIFICADO) ---
   useEffect(() => {
     if (!socket) return;
-
-    // --- 1. Sincronización de Reloj ---
-    // Pedimos la hora al servidor para calcular nuestro offset.
+    const handleServerTime = (serverTime: number) => {
+      setClockOffset(serverTime - Date.now());
+    };
     socket.emit("request-server-time");
-    socket.on("server-time", (serverTime: number) => {
-      const clientTime = Date.now();
-      const offset = serverTime - clientTime;
-      setClockOffset(offset);
-      console.log(`Diferencia de reloj con el servidor: ${offset}ms`);
-    });
+    socket.on("server-time", handleServerTime);
+    return () => {
+      socket.off("server-time", handleServerTime);
+    };
+  }, [socket]);
 
-    if (selectedMatriz) {
-      socket.emit("join-matrix-room", selectedMatriz.id);
-    }
-
-    // --- 2. Manejador de la Ola (MODIFICADO) ---
+  useEffect(() => {
+    if (!socket || !selectedMatriz) return;
+    socket.emit("join-matrix-room", selectedMatriz.id);
     const handleWaveUpdate = (payload: {
       highlightedColumn: number | null;
       color: string | null;
       renderTime: number;
     }) => {
       const { highlightedColumn, color, renderTime } = payload;
-
-      // Calculamos la "hora actual" del servidor usando nuestro offset
       const serverTimeNow = Date.now() + clockOffset;
-      // El delay ahora es mucho más preciso porque considera la diferencia de relojes
       const delay = renderTime - serverTimeNow;
-
       setTimeout(
         () => {
           setWaveState({ column: highlightedColumn, color: color });
@@ -224,14 +200,11 @@ export default function EfectoPage() {
         delay > 0 ? delay : 0
       );
     };
-
     socket.on("wave-update", handleWaveUpdate);
-
     return () => {
       socket.off("wave-update", handleWaveUpdate);
-      socket.off("server-time"); // Limpiamos el listener de tiempo
     };
-  }, [socket, selectedMatriz, clockOffset]); // Agregamos clockOffset a las dependencias
+  }, [socket, selectedMatriz, clockOffset]);
 
   useEffect(() => {
     if (!celdaId) return;
@@ -251,15 +224,15 @@ export default function EfectoPage() {
       }
     };
     findAndSetMatriz();
-
     const verificarEstado = async () => {
       const { data: miCeldaData, error: miCeldaError } = await supabase
         .from("celdas")
         .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
-      if (miCeldaError || !miCeldaData) return liberarMiCelda();
-      if (miCeldaData.estado_celda === 0) return liberarMiCelda();
+      if (miCeldaError || !miCeldaData || miCeldaData.estado_celda === 0) {
+        return liberarMiCelda();
+      }
       setLetra(miCeldaData.letra_asignada);
       const nombreEfectoNuevo = await getNombreEfecto(miCeldaData.efecto_id);
       if (nombreEfectoNuevo !== efecto) setEfecto(nombreEfectoNuevo);
@@ -274,22 +247,23 @@ export default function EfectoPage() {
     const intervalId = setInterval(verificarEstado, 3000);
     verificarEstado();
     return () => clearInterval(intervalId);
-  }, [celdaId]);
+  }, [celdaId, efecto, efectoGlobal]);
 
   const claseEfecto =
-    efectoGlobal && efectoGlobal !== "inicial"
-      ? `efecto-${efectoGlobal}`
-      : `efecto-${efecto}`;
+    efectoGlobal !== "inicial" ? `efecto-${efectoGlobal}` : `efecto-${efecto}`;
 
-  // --- Lógica de Renderizado ---
+  // --- LÓGICA DE RENDERIZADO ---
   if (celdaId) {
+    // Determina si el efecto de ola se debe aplicar a ESTE dispositivo
     const isWaveActiveOnMe = miCeldaInfo?.columna === waveState.column;
-    let finalClaseEfecto = claseEfecto;
-    let inlineStyle = {};
 
+    let finalClaseEfecto = claseEfecto;
+    const inlineStyle: React.CSSProperties = {};
+
+    // Si la ola está activa en la columna de este dispositivo, se aplica el efecto
     if (isWaveActiveOnMe) {
       finalClaseEfecto = "efecto-ola-activa";
-      inlineStyle = { backgroundColor: waveState.color || undefined };
+      inlineStyle.backgroundColor = waveState.color || undefined;
     }
 
     if (finalClaseEfecto === "efecto-mostrar-letra" && letra) {
@@ -300,15 +274,13 @@ export default function EfectoPage() {
       );
     }
 
-    const showUi = isUiVisible;
-
     return (
       <div
         className={`container-confirmacion ${finalClaseEfecto}`}
         style={inlineStyle}
         onClick={handleScreenTap}
       >
-        <div className={`info-container ${showUi ? "visible" : ""}`}>
+        <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
           <h1>¡Listo!</h1>
           <p>Tu posición está confirmada.</p>
           <div className="luz-indicadora"></div>
@@ -316,7 +288,7 @@ export default function EfectoPage() {
         <button
           onClick={liberarMiCelda}
           disabled={isPending}
-          className={`boton-salir ${showUi ? "visible" : ""}`}
+          className={`boton-salir ${isUiVisible ? "visible" : ""}`}
         >
           Salir
         </button>
@@ -338,28 +310,18 @@ export default function EfectoPage() {
             gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)`,
           }}
         >
-          {celdas.map((celda) => {
-            const isHighlighted = celda.columna === waveState.column;
-            return (
-              <button
-                key={celda.id}
-                className={`celda-seleccion ${
-                  celda.estado_celda === 1 ? "ocupada" : "libre"
-                } ${isHighlighted ? "wave-active" : ""}`}
-                style={
-                  isHighlighted && waveState.color
-                    ? {
-                        backgroundColor: waveState.color,
-                        borderColor: waveState.color,
-                      }
-                    : {}
-                }
-                onClick={() => seleccionarCelda(celda)}
-                disabled={isPending || celda.estado_celda === 1}
-                title={`Fila ${celda.fila}, Columna ${celda.columna}`}
-              />
-            );
-          })}
+          {celdas.map((celda) => (
+            <button
+              key={celda.id}
+              // --- CORRECCIÓN: Se elimina la lógica de la ola de aquí ---
+              className={`celda-seleccion ${
+                celda.estado_celda === 1 ? "ocupada" : "libre"
+              }`}
+              onClick={() => seleccionarCelda(celda)}
+              disabled={isPending || celda.estado_celda === 1}
+              title={`Fila ${celda.fila}, Columna ${celda.columna}`}
+            />
+          ))}
         </div>
       </div>
     );

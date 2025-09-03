@@ -83,10 +83,8 @@
   }
 }
 
-/* --- ¡CORRECCIÓN AQUÍ! --- */
-/* Esta es la clase del efecto que se aplica al contenedor */
 .efecto-mostrar-letra {
-  background-color: #000000; /* Color del fondo: negro */
+  background-color: #000000;
 }
 
 /* --- Estilos para la pantalla de la letra --- */
@@ -103,7 +101,7 @@
   font-weight: bold;
   font-size: 80vmin;
   line-height: 1;
-  color: #ffffff; /* Color de la letra: blanco */
+  color: #ffffff;
 }
 
 /* --- Contenedor para la información que se oculta --- */
@@ -129,7 +127,6 @@
   border: none;
   border-radius: 8px;
   cursor: pointer;
-
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease-in-out;
@@ -232,17 +229,8 @@
   background-color: #333;
 }
 
-/* ... (tus estilos existentes) ... */
-
-/* --- ¡ESTILO MODIFICADO! --- */
-/* Ahora solo define la transformación y la sombra, el color se aplica en línea */
-.celda-seleccion.wave-active {
-  transform: scale(1.1);
-  box-shadow: 0 0 15px currentColor; /* Usa el color de texto actual (que será el color de fondo) para el brillo */
-  transition: background-color 0.1s ease-in-out, transform 0.1s ease-in-out;
-}
-
-/* El estilo para la pantalla de confirmación se mantiene igual */
+/* --- CORRECCIÓN: Estilo para la pantalla de confirmación durante la ola --- */
 .efecto-ola-activa {
+  /* La transición suave del color de fondo */
   transition: background-color 0.1s ease-in-out;
 }
