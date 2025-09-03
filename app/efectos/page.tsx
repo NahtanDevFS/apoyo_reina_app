@@ -249,26 +249,42 @@ export default function EfectoPage() {
     return () => clearInterval(intervalId);
   }, [celdaId, efecto, efectoGlobal]);
 
-  const claseEfecto =
-    efectoGlobal !== "inicial" ? `efecto-${efectoGlobal}` : `efecto-${efecto}`;
-
-  // --- LÓGICA DE RENDERIZADO ---
+  // --- LÓGICA DE RENDERIZADO CORREGIDA ---
   if (celdaId) {
-    // Determina si el efecto de ola se debe aplicar a ESTE dispositivo
     const isWaveActiveOnMe = miCeldaInfo?.columna === waveState.column;
 
-    let finalClaseEfecto = claseEfecto;
-    const inlineStyle: React.CSSProperties = {};
+    // 1. Determina el efecto base desde la base de datos (global o por celda)
+    const claseEfectoBase =
+      efectoGlobal !== "inicial"
+        ? `efecto-${efectoGlobal}`
+        : `efecto-${efecto}`;
 
-    // Si la ola está activa en la columna de este dispositivo, se aplica el efecto
+    // 2. Si la ola está activa en este dispositivo, TIENE PRIORIDAD.
     if (isWaveActiveOnMe) {
-      finalClaseEfecto = "efecto-ola-activa";
-      inlineStyle.backgroundColor = waveState.color || undefined;
+      // Si el efecto es mostrar letra, no aplicamos la ola para que la letra se vea.
+      if (claseEfectoBase === "efecto-mostrar-letra" && letra) {
+        return (
+          <div className={`container-letra ${claseEfectoBase}`}>
+            <span className="letra-display">{letra}</span>
+          </div>
+        );
+      }
+      // Para cualquier otro caso, la ola se superpone.
+      return (
+        <div
+          className="container-confirmacion efecto-ola-activa"
+          style={{ backgroundColor: waveState.color || undefined }}
+          onClick={handleScreenTap}
+        >
+          {/* El contenido se puede ocultar para que el color sea lo único visible */}
+        </div>
+      );
     }
 
-    if (finalClaseEfecto === "efecto-mostrar-letra" && letra) {
+    // 3. Si la ola NO está activa, renderiza el efecto normal desde la BD.
+    if (claseEfectoBase === "efecto-mostrar-letra" && letra) {
       return (
-        <div className={`container-letra ${finalClaseEfecto}`}>
+        <div className={`container-letra ${claseEfectoBase}`}>
           <span className="letra-display">{letra}</span>
         </div>
       );
@@ -276,8 +292,7 @@ export default function EfectoPage() {
 
     return (
       <div
-        className={`container-confirmacion ${finalClaseEfecto}`}
-        style={inlineStyle}
+        className={`container-confirmacion ${claseEfectoBase}`}
         onClick={handleScreenTap}
       >
         <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
@@ -296,6 +311,7 @@ export default function EfectoPage() {
     );
   }
 
+  // --- El resto del componente no tiene cambios ---
   if (selectedMatriz) {
     return (
       <div className="container-seleccion">
@@ -313,7 +329,6 @@ export default function EfectoPage() {
           {celdas.map((celda) => (
             <button
               key={celda.id}
-              // --- CORRECCIÓN: Se elimina la lógica de la ola de aquí ---
               className={`celda-seleccion ${
                 celda.estado_celda === 1 ? "ocupada" : "libre"
               }`}
