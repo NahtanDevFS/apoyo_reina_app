@@ -229,8 +229,20 @@
   background-color: #333;
 }
 
-/* --- CORRECCIÓN: Estilo para la pantalla de confirmación durante la ola --- */
-.efecto-ola-activa {
-  /* La transición suave del color de fondo */
-  transition: background-color 0.1s ease-in-out;
+.efecto-ola {
+  background: linear-gradient(270deg, #c62b28, #16709f, #c62b28);
+  background-size: 600% 600%;
+  animation: waveAnimation 4s ease infinite;
+}
+
+@keyframes waveAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
