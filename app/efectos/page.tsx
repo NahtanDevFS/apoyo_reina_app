@@ -3,7 +3,6 @@
 
 import { useEffect, useState, useTransition, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { useSocket } from "@/lib/useSocket";
 import "./efectos.css";
 
 // Tipos
@@ -16,7 +15,6 @@ type Celda = {
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 
 export default function EfectoPage() {
-  const socket = useSocket();
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
   const [selectedMatriz, setSelectedMatriz] = useState<Matriz | null>(null);
   const [celdas, setCeldas] = useState<Celda[]>([]);
@@ -36,7 +34,6 @@ export default function EfectoPage() {
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-  const [clockOffset, setClockOffset] = useState<number>(0);
   const [isPending, startTransition] = useTransition();
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
@@ -106,10 +103,7 @@ export default function EfectoPage() {
       .from("matrices")
       .select("*")
       .order("nombre");
-    if (error)
-      return setMensaje(
-        "No se pudieron cargar los eventos. Revisa los permisos de la tabla."
-      );
+    if (error) return setMensaje("No se pudieron cargar los eventos.");
     setAllMatrices(data);
     setMensaje("Selecciona tu evento o sección");
   };
@@ -171,97 +165,70 @@ export default function EfectoPage() {
   }, [celdaId]);
 
   useEffect(() => {
-    if (!socket) return;
-    const handleServerTime = (serverTime: number) => {
-      setClockOffset(serverTime - Date.now());
-    };
-    socket.emit("request-server-time");
-    socket.on("server-time", handleServerTime);
-    return () => {
-      socket.off("server-time", handleServerTime);
-    };
-  }, [socket]);
-
-  useEffect(() => {
-    if (!socket || !selectedMatriz) return;
-    socket.emit("join-matrix-room", selectedMatriz.id);
-    const handleWaveUpdate = (payload: {
-      highlightedColumn: number | null;
-      color: string | null;
-      renderTime: number;
-    }) => {
-      const { highlightedColumn, color, renderTime } = payload;
-      const serverTimeNow = Date.now() + clockOffset;
-      const delay = renderTime - serverTimeNow;
-      setTimeout(
-        () => {
-          setWaveState({ column: highlightedColumn, color: color });
-        },
-        delay > 0 ? delay : 0
-      );
-    };
-    socket.on("wave-update", handleWaveUpdate);
-    return () => {
-      socket.off("wave-update", handleWaveUpdate);
-    };
-  }, [socket, selectedMatriz, clockOffset]);
-
-  useEffect(() => {
     if (!celdaId) return;
-    const findAndSetMatriz = async () => {
-      const { data } = await supabase
-        .from("celdas")
-        .select("matriz_id")
-        .eq("id", celdaId)
-        .single();
-      if (data) {
-        const { data: matrizData } = await supabase
-          .from("matrices")
-          .select("*")
-          .eq("id", data.matriz_id)
-          .single();
-        if (matrizData) setSelectedMatriz(matrizData);
-      }
-    };
-    findAndSetMatriz();
+
     const verificarEstado = async () => {
-      const { data: miCeldaData, error: miCeldaError } = await supabase
+      const { data: miCeldaData } = await supabase
         .from("celdas")
         .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
-      if (miCeldaError || !miCeldaData || miCeldaData.estado_celda === 0) {
+      if (!miCeldaData || miCeldaData.estado_celda === 0)
         return liberarMiCelda();
-      }
+
       setLetra(miCeldaData.letra_asignada);
       const nombreEfectoNuevo = await getNombreEfecto(miCeldaData.efecto_id);
       if (nombreEfectoNuevo !== efecto) setEfecto(nombreEfectoNuevo);
+
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select("efecto_actual")
         .eq("id", 1)
         .single();
-      if (globalData && globalData.efecto_actual !== efectoGlobal)
-        setEfectoGlobal(globalData.efecto_actual);
+
+      let isWave = false;
+      if (globalData?.efecto_actual) {
+        try {
+          const parsed = JSON.parse(globalData.efecto_actual);
+          if (parsed.type === "ola") {
+            isWave = true;
+            setEfectoGlobal("ola");
+            // Actualiza el estado de la ola solo si ha cambiado para evitar re-renders innecesarios
+            if (
+              waveState.column !== parsed.column ||
+              waveState.color !== parsed.color
+            ) {
+              setWaveState({ column: parsed.column, color: parsed.color });
+            }
+          }
+        } catch (e) {
+          if (globalData.efecto_actual !== efectoGlobal) {
+            setEfectoGlobal(globalData.efecto_actual);
+          }
+        }
+      } else {
+        if (efectoGlobal !== "inicial") setEfectoGlobal("inicial");
+      }
+
+      if (!isWave && waveState.column !== null) {
+        setWaveState({ column: null, color: null });
+      }
     };
-    const intervalId = setInterval(verificarEstado, 3000);
+
+    // Hacemos el polling más rápido para que la ola se vea fluida
+    const intervalId = setInterval(verificarEstado, 250);
     verificarEstado();
     return () => clearInterval(intervalId);
-  }, [celdaId, efecto, efectoGlobal]);
+  }, [celdaId, efecto, efectoGlobal, waveState]);
 
-  // --- LÓGICA DE RENDERIZADO CORREGIDA ---
   if (celdaId) {
     const isWaveActiveOnMe = miCeldaInfo?.columna === waveState.column;
-
-    // 1. Determina el efecto base desde la base de datos (global o por celda)
     const claseEfectoBase =
       efectoGlobal !== "inicial"
         ? `efecto-${efectoGlobal}`
         : `efecto-${efecto}`;
 
-    // 2. Si la ola está activa en este dispositivo, TIENE PRIORIDAD.
     if (isWaveActiveOnMe) {
-      // Si el efecto es mostrar letra, no aplicamos la ola para que la letra se vea.
       if (claseEfectoBase === "efecto-mostrar-letra" && letra) {
         return (
           <div className={`container-letra ${claseEfectoBase}`}>
@@ -269,19 +236,15 @@ export default function EfectoPage() {
           </div>
         );
       }
-      // Para cualquier otro caso, la ola se superpone.
       return (
         <div
           className="container-confirmacion efecto-ola-activa"
           style={{ backgroundColor: waveState.color || undefined }}
           onClick={handleScreenTap}
-        >
-          {/* El contenido se puede ocultar para que el color sea lo único visible */}
-        </div>
+        />
       );
     }
 
-    // 3. Si la ola NO está activa, renderiza el efecto normal desde la BD.
     if (claseEfectoBase === "efecto-mostrar-letra" && letra) {
       return (
         <div className={`container-letra ${claseEfectoBase}`}>
@@ -311,7 +274,6 @@ export default function EfectoPage() {
     );
   }
 
-  // --- El resto del componente no tiene cambios ---
   if (selectedMatriz) {
     return (
       <div className="container-seleccion">
