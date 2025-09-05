@@ -33,6 +33,8 @@ type DashboardClientProps = {
   applyGlobalEfectoAction: (nombreEfecto: string) => Promise<any>;
   liberarCeldasAction: (celdaIds: number[]) => Promise<any>;
   applyLetraAction: (celdaId: number, letra: string) => Promise<any>;
+  liberarMatrizAction: (matrizId: number) => Promise<any>;
+  applyTextoToMatrizAction: (matrizId: number, texto: string) => Promise<any>;
 };
 
 export default function DashboardClient({
@@ -45,8 +47,10 @@ export default function DashboardClient({
   applyGlobalEfectoAction,
   liberarCeldasAction,
   applyLetraAction,
+  liberarMatrizAction,
+  applyTextoToMatrizAction,
 }: DashboardClientProps) {
-  // Estados de autenticación (sin cambios)
+  // Estados de autenticación
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [authError, setAuthError] = useState("");
@@ -63,9 +67,8 @@ export default function DashboardClient({
   const [selectedCeldas, setSelectedCeldas] = useState<Set<number>>(new Set());
   const [selectedEfectoId, setSelectedEfectoId] = useState<string>("");
   const [letra, setLetra] = useState("");
+  const [textoGlobal, setTextoGlobal] = useState("");
   const [isPending, startTransition] = useTransition();
-
-  // Se eliminan los estados relacionados con Sockets y la ola (socket, activeWaveRooms, waveIntervalId, etc.)
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -94,7 +97,7 @@ export default function DashboardClient({
       }
     };
     refreshCeldas();
-    const intervalId = setInterval(refreshCeldas, 5000);
+    const intervalId = setInterval(refreshCeldas, 2000); // Refresca cada 2 segundos
     return () => clearInterval(intervalId);
   }, [selectedMatrizId, getCeldasAction, isAuthenticated]);
 
@@ -139,8 +142,11 @@ export default function DashboardClient({
 
   const handleCeldaClick = (celdaId: number) => {
     const newSelection = new Set(selectedCeldas);
-    if (newSelection.has(celdaId)) newSelection.delete(celdaId);
-    else newSelection.add(celdaId);
+    if (newSelection.has(celdaId)) {
+      newSelection.delete(celdaId);
+    } else {
+      newSelection.add(celdaId);
+    }
     setSelectedCeldas(newSelection);
   };
 
@@ -196,6 +202,24 @@ export default function DashboardClient({
     });
   };
 
+  const handleLiberarMatriz = () => {
+    if (!selectedMatrizId || !confirm("¿Seguro que quieres liberar TODAS las celdas de esta matriz?")) return;
+    startTransition(async () => {
+      await liberarMatrizAction(selectedMatrizId);
+      await refreshCurrentMatrix();
+      setSelectedCeldas(new Set());
+    });
+  };
+
+  const handleApplyTextoToMatriz = () => {
+      if (!selectedMatrizId || !textoGlobal.trim()) return;
+      startTransition(async () => {
+          await applyTextoToMatrizAction(selectedMatrizId, textoGlobal);
+          await refreshCurrentMatrix();
+          setTextoGlobal("");
+      });
+  };
+
   const isLetraButtonDisabled = () => {
     if (isPending || selectedCeldas.size !== 1 || !letra.trim()) return true;
     const celdaId = Array.from(selectedCeldas)[0];
@@ -234,11 +258,15 @@ export default function DashboardClient({
           selectedCeldasCount={selectedCeldas.size}
           letra={letra}
           onLetraChange={setLetra}
+          textoGlobal={textoGlobal}
+          onTextoGlobalChange={setTextoGlobal}
           selectedEfectoId={selectedEfectoId}
           onEfectoChange={setSelectedEfectoId}
           onApplyEfecto={handleApplyEfecto}
           onApplyLetra={handleApplyLetra}
           onLiberar={handleLiberar}
+          onLiberarMatriz={handleLiberarMatriz}
+          onApplyTextoToMatriz={handleApplyTextoToMatriz}
           onApplyGlobalEfecto={(css) =>
             startTransition(() => applyGlobalEfectoAction(css))
           }
