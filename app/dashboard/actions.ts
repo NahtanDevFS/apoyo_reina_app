@@ -9,74 +9,78 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function syncPredefinedEfectos() {
-  const predefinedEfectos = [
-    { nombre: "Apagón", nombre_css: "apagon", descripcion: "Fondo completamente negro." },
-    { nombre: "Rojo Pulsante", nombre_css: "rojo-pulsante", descripcion: "El color rojo aparece y desaparece." },
-    { nombre: "Arcoíris", nombre_css: "arcoiris", descripcion: "Gradiente de colores en movimiento." },
-    { nombre: "Parpadeo", nombre_css: "parpadeo", descripcion: "Alterna rápidamente entre blanco y negro." },
-    { nombre: "Inicial", nombre_css: "inicial", descripcion: "Estado por defecto, fondo oscuro." },
-    { nombre: "Mostrar Letra", nombre_css: "mostrar-letra", descripcion: "Muestra una letra o texto en pantalla." },
-    { nombre: "Efecto Ola", nombre_css: "ola", descripcion: "Una ola de colores azul y rojo." },
-    { nombre: "Flash Físico Lento", nombre_css: "flash-fisico-lento", descripcion: "Usa el flash de la cámara para un parpadeo lento." },
-    { nombre: "Flash Físico Rápido", nombre_css: "flash-fisico-rapido", descripcion: "Usa el flash de la cámara para un parpadeo rápido." },
-    { nombre: "Flash Físico SOS", nombre_css: "flash-fisico-sos", descripcion: "Usa el flash de la cámara para emitir una señal de SOS." },
-  ];
-  const { error } = await supabaseAdmin.from("efectos").upsert(predefinedEfectos, { onConflict: "nombre_css" });
-  if (error) return { error: error.message };
-  revalidatePath("/dashboard");
-  return { success: true, message: "Efectos sincronizados." };
-}
-
-// --- ¡MODIFICADO! Guarda la hora actual para la sincronización ---
+// Función auxiliar para actualizar el timestamp y disparar la sincronización
 const updateTimestamp = async () => {
   const now = new Date().toISOString();
-  await supabaseAdmin.from("estado_concierto").update({ efecto_timestamp: now }).eq("id", 1);
+  await supabaseAdmin
+    .from("estado_concierto")
+    .update({ efecto_timestamp: now })
+    .eq("id", 1);
 };
 
-export async function applyTextoToCelda(celdaId: number, texto: string) {
-  const { data: efecto, error: efectoError } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
-  if (efectoError || !efecto) return { error: "El efecto 'Mostrar Letra' no existe." };
-  
-  await supabaseAdmin.from("celdas").update({
-    efecto_id: efecto.id,
-    letra_asignada: texto.trim().toUpperCase(),
-    updated_at: new Date().toISOString(),
-  }).eq("id", celdaId);
-  
-  await updateTimestamp(); // Sincroniza el cambio
+export async function syncPredefinedEfectos() {
+  const predefinedEfectos = [
+    { nombre: "Apagón", nombre_css: "apagon" },
+    { nombre: "Rojo Pulsante", nombre_css: "rojo-pulsante" },
+    { nombre: "Arcoíris", nombre_css: "arcoiris" },
+    { nombre: "Parpadeo", nombre_css: "parpadeo" },
+    { nombre: "Inicial", nombre_css: "inicial" },
+    { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
+    // --- ¡NUEVOS EFECTOS DE OLA! ---
+    { nombre: "Ola Horizontal", nombre_css: "ola-horizontal" },
+    { nombre: "Ola Vertical", nombre_css: "ola-vertical" },
+    { nombre: "Ola Expansiva", nombre_css: "ola-expansiva" },
+    { nombre: "Ola Activa (Color)", nombre_css: "ola-activa" }, // Efecto de apoyo para las olas
+  ];
+  await supabaseAdmin.from("efectos").upsert(predefinedEfectos, { onConflict: "nombre_css" });
   revalidatePath("/dashboard");
-  return { success: true };
-}
-
-export async function applyEfectoToCeldas(celdaIds: number[], efectoId: number | null) {
-  await supabaseAdmin.from("celdas").update({
-    efecto_id: efectoId,
-    letra_asignada: null,
-    updated_at: new Date().toISOString(),
-  }).in("id", celdaIds);
-
-  await updateTimestamp(); // Sincroniza el cambio
-  revalidatePath("/dashboard");
-  return { success: true };
-}
-
-export async function liberarCeldas(celdaIds: number[]) {
-  const { error } = await supabaseAdmin.from("celdas").update({ estado_celda: 0, letra_asignada: null, efecto_id: null }).in("id", celdaIds);
-  if (error) return { error: error.message };
-  revalidatePath("/dashboard");
-  return { success: true };
+  return { success: true, message: "Efectos sincronizados." };
 }
 
 export async function applyGlobalEfecto(nombreEfecto: string) {
   await supabaseAdmin.from("estado_concierto").update({ 
     efecto_actual: nombreEfecto,
-    efecto_timestamp: new Date().toISOString() // ¡MODIFICADO! Guarda la hora
+    efecto_timestamp: new Date().toISOString()
   }).eq("id", 1);
   return { success: true };
 }
 
-// --- ¡NUEVO! Acción para liberar todas las celdas de una matriz ---
+// Modificado para no actualizar el timestamp, ya que el dashboard lo controla en bucle
+export async function applyEfectoToCeldas( celdasIds: number[], efectoId: number | null) {
+  if (celdasIds.length === 0) return { success: true };
+  
+  const { error } = await supabaseAdmin.from("celdas").update({
+    efecto_id: efectoId,
+    letra_asignada: null,
+  }).in("id", celdasIds);
+
+  if(error) return { error: error.message };
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function applyTextoToCelda(celdaId: number, texto: string) {
+    const { data: efecto } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
+    if (!efecto) return { error: "El efecto 'Mostrar Letra' no existe." };
+    
+    await supabaseAdmin.from("celdas").update({
+      efecto_id: efecto.id,
+      letra_asignada: texto.trim().toUpperCase(),
+    }).eq("id", celdaId);
+    
+    await updateTimestamp();
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
+export async function liberarCeldas(celdaIds: number[]) {
+    const { error } = await supabaseAdmin.from("celdas").update({ estado_celda: 0, letra_asignada: null, efecto_id: null }).in("id", celdaIds);
+    if (error) return { error: error.message };
+    revalidatePath("/dashboard");
+    return { success: true };
+}
+
 export async function liberarMatrizCompleta(matrizId: number) {
     if (!matrizId) return { error: "No se ha seleccionado una matriz." };
     const { error } = await supabaseAdmin
@@ -89,26 +93,20 @@ export async function liberarMatrizCompleta(matrizId: number) {
     return { success: true, message: "Todas las celdas han sido liberadas." };
 }
 
-// --- ¡NUEVO! Acción para aplicar texto a toda una matriz ---
 export async function applyTextoToMatriz(matrizId: number, texto: string) {
     if (!matrizId) return { error: "No se ha seleccionado una matriz." };
+    const { data: efecto } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
+    if (!efecto) return { error: "El efecto 'Mostrar Letra' no existe." };
 
-    const { data: efecto, error: efectoError } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
-    if (efectoError || !efecto) return { error: "El efecto 'Mostrar Letra' no existe." };
-
-    const { error } = await supabaseAdmin.from("celdas").update({
+    await supabaseAdmin.from("celdas").update({
         efecto_id: efecto.id,
         letra_asignada: texto.trim().toUpperCase(),
-        updated_at: new Date().toISOString(),
     }).eq("matriz_id", matrizId);
-
-    if (error) return { error: error.message };
     
-    await updateTimestamp(); // Sincroniza el cambio
+    await updateTimestamp();
     revalidatePath("/dashboard");
     return { success: true };
 }
-
 
 export async function createMatriz(formData: FormData) {
   const nombre = formData.get("nombre") as string;
