@@ -31,21 +31,17 @@ export default function EfectoPage() {
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // --- ¡NUEVO! Refs para manejar el flash físico ---
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const prevEfectoRef = useRef<string>("inicial");
 
-  // --- ¡NUEVO! Función para controlar el flash (torch) ---
+  // --- CORRECCIÓN: Función de control de flash mejorada ---
   const controlFlash = async (state: boolean) => {
-    if (
-      videoTrackRef.current &&
-      (videoTrackRef.current.getCapabilities() as any).torch
-    ) {
+    if (videoTrackRef.current && videoTrackRef.current.getCapabilities().torch) {
       try {
         await videoTrackRef.current.applyConstraints({
-          advanced: [{ torch: state }] as any,
+          advanced: [{ torch: state }],
         });
       } catch (err) {
         console.error("Error al controlar el flash:", err);
@@ -53,26 +49,24 @@ export default function EfectoPage() {
     }
   };
 
-  // --- ¡NUEVO! Función para detener cualquier patrón de flasheo ---
   const stopFlashing = () => {
     if (flashIntervalRef.current) {
-      clearInterval(flashIntervalRef.current);
+      clearTimeout(flashIntervalRef.current); // Usamos clearTimeout para los patrones
       flashIntervalRef.current = null;
     }
-    controlFlash(false); // Siempre apagar el flash al detener
+    controlFlash(false);
   };
 
-  // --- ¡NUEVO! Función para iniciar un patrón de flasheo ---
   const startFlashing = (flashType: string) => {
-    stopFlashing(); // Detener cualquier flash anterior
+    stopFlashing();
 
-    let pattern: number[] = []; // [on, off, on, off, ...]
+    let pattern: number[] = [];
     switch (flashType) {
       case "flash-fisico-lento":
-        pattern = [1000, 1000]; // 1s on, 1s off
+        pattern = [1000, 1000];
         break;
       case "flash-fisico-rapido":
-        pattern = [200, 200]; // 0.2s on, 0.2s off
+        pattern = [200, 200];
         break;
       case "flash-fisico-sos":
         pattern = [150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100, 150, 100, 150, 800];
@@ -83,45 +77,44 @@ export default function EfectoPage() {
 
     let i = 0;
     const executePattern = () => {
-      controlFlash(i % 2 === 0); // Alternar on/off
+      controlFlash(i % 2 === 0);
       const duration = pattern[i % pattern.length];
       i++;
       flashIntervalRef.current = setTimeout(executePattern, duration);
     };
-
     executePattern();
   };
-
-  // --- ¡NUEVO! Función para inicializar la cámara y obtener permisos ---
+  
+  // --- CORRECCIÓN: Se eliminan los 'alert()' para una experiencia fluida ---
   const initCameraForFlash = async (): Promise<boolean> => {
-    if (videoTrackRef.current) return true; // Ya está inicializada
+    if (videoTrackRef.current) return true;
 
     if (!("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)) {
-      alert("Tu navegador no soporta el control del flash.");
+      console.error("Flash Control: MediaDevices API not supported.");
       return false;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }, // Pedir cámara trasera
+        video: { facingMode: "environment" },
       });
       const track = stream.getVideoTracks()[0];
-      // Usar type assertion para acceder a 'torch'
-      if (!(track.getCapabilities() as any).torch) {
-        alert("Tu dispositivo no parece tener un flash controlable.");
-        track.stop(); // Liberar la cámara si no hay flash
+      
+      // Si no hay 'torch', lo reportamos en consola y devolvemos false sin alertar.
+      if (!track.getCapabilities().torch) {
+        console.error("Flash Control: Torch capability not supported on this device/track.");
+        track.stop();
         return false;
       }
       videoTrackRef.current = track;
       return true;
     } catch (err) {
-      alert("Necesitamos permiso para usar la cámara y poder controlar el flash.");
-      console.error("Error al obtener acceso a la cámara:", err);
+      // Si el usuario niega el permiso, no mostramos alerta.
+      console.error("Flash Control: Could not get camera access (permission likely denied).", err);
       return false;
     }
   };
-  
-  // --- ¡NUEVO! Función para liberar la cámara y apagar el flash ---
+
   const releaseCamera = () => {
     stopFlashing();
     if (videoTrackRef.current) {
@@ -130,7 +123,6 @@ export default function EfectoPage() {
       console.log("Cámara liberada.");
     }
   };
-
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
@@ -146,14 +138,16 @@ export default function EfectoPage() {
   const seleccionarCelda = async (celda: Celda) => {
     if (celda.estado_celda === 1)
       return alert("Esta posición ya está ocupada.");
+    if (!selectedMatriz) return; // Guard para evitar errores
+    
     startTransition(async () => {
       const { data, error } = await supabase.rpc("ocupar_celda_especifica", {
-        matriz_id_in: selectedMatriz!.id,
+        matriz_id_in: selectedMatriz.id,
         fila_in: celda.fila,
         columna_in: celda.columna,
       });
       if (error || !data || data.length === 0) {
-        if (selectedMatriz) cargarCeldasDeMatriz(selectedMatriz);
+        cargarCeldasDeMatriz(selectedMatriz);
         return alert("Alguien más tomó este lugar. ¡Intenta de nuevo!");
       }
       const nuevaCeldaId = data[0].celda_id;
@@ -161,19 +155,7 @@ export default function EfectoPage() {
         setCeldaId(nuevaCeldaId);
         setMiCeldaInfo({ fila: celda.fila, columna: celda.columna });
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
-        sessionStorage.setItem(
-          "miCeldaInfo",
-          JSON.stringify({ fila: celda.fila, columna: celda.columna })
-        );
-        const { data: celdaInicial } = await supabase
-          .from("celdas")
-          .select("efecto_id, letra_asignada")
-          .eq("id", nuevaCeldaId)
-          .single();
-        if (celdaInicial) {
-          setEfecto(await getNombreEfecto(celdaInicial.efecto_id));
-          setLetra(celdaInicial.letra_asignada);
-        }
+        sessionStorage.setItem("miCeldaInfo", JSON.stringify({ fila: celda.fila, columna: celda.columna }));
       }
     });
   };
@@ -181,7 +163,7 @@ export default function EfectoPage() {
   const liberarMiCelda = async () => {
     if (!celdaId) return;
     startTransition(async () => {
-      releaseCamera(); // ¡NUEVO! Asegurarse de liberar la cámara al salir.
+      releaseCamera();
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
       sessionStorage.removeItem("miCeldaInfo");
@@ -189,6 +171,9 @@ export default function EfectoPage() {
       setMiCeldaInfo(null);
       setIsUiVisible(true);
       setLetra(null);
+      setEfecto("inicial");
+      setEfectoGlobal("inicial");
+      prevEfectoRef.current = "inicial";
       cargarTodasLasMatrices();
     });
   };
@@ -196,10 +181,7 @@ export default function EfectoPage() {
   const cargarTodasLasMatrices = async () => {
     setMensaje("Cargando eventos disponibles...");
     setSelectedMatriz(null);
-    const { data, error } = await supabase
-      .from("matrices")
-      .select("*")
-      .order("nombre");
+    const { data, error } = await supabase.from("matrices").select("*").order("nombre");
     if (error) return setMensaje("No se pudieron cargar los eventos.");
     setAllMatrices(data);
     setMensaje("Selecciona tu evento o sección");
@@ -244,31 +226,22 @@ export default function EfectoPage() {
       if ("wakeLock" in navigator && celdaId) {
         try {
           wakeLockRef.current = await navigator.wakeLock.request("screen");
-          console.log("Screen Wake Lock activado.");
         } catch (err: any) {
-          console.error(
-            `No se pudo activar el Wake Lock: ${err.name}, ${err.message}`
-          );
+          console.error(`No se pudo activar el Wake Lock: ${err.name}, ${err.message}`);
         }
       }
     };
-
     const releaseWakeLock = async () => {
       if (wakeLockRef.current) {
         await wakeLockRef.current.release();
         wakeLockRef.current = null;
-        console.log("Screen Wake Lock liberado.");
       }
     };
-
     requestWakeLock();
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        requestWakeLock();
-      }
+      if (document.visibilityState === "visible") requestWakeLock();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
       releaseWakeLock();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -279,45 +252,31 @@ export default function EfectoPage() {
     if (!celdaId) return;
 
     const handleEfectoChange = async (efectoActual: string) => {
-        // --- ¡NUEVA LÓGICA PARA EL FLASH FÍSICO! ---
-        if (efectoActual.startsWith("flash-fisico-")) {
-            const cameraReady = await initCameraForFlash();
-            if (cameraReady) {
-                startFlashing(efectoActual);
-            }
-        } 
-        // Si el efecto anterior era de flash y el nuevo no, detenerlo.
-        else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
-            stopFlashing();
-        }
-        prevEfectoRef.current = efectoActual;
+      if (efectoActual.startsWith("flash-fisico-")) {
+        const cameraReady = await initCameraForFlash();
+        if (cameraReady) startFlashing(efectoActual);
+      } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
+        stopFlashing();
+      }
+      prevEfectoRef.current = efectoActual;
     };
 
     const verificarEstado = async () => {
-      // 1. Obtener efecto global
-      const { data: globalData } = await supabase
-        .from("estado_concierto")
-        .select("efecto_actual")
-        .eq("id", 1)
-        .single();
+      if(!celdaId) return;
+      const [globalRes, celdaRes] = await Promise.all([
+          supabase.from("estado_concierto").select("efecto_actual").eq("id", 1).single(),
+          supabase.from("celdas").select("estado_celda, efecto_id, letra_asignada").eq("id", celdaId).single()
+      ]);
+
+      if (!celdaRes.data || celdaRes.data.estado_celda === 0) return liberarMiCelda();
       
-      const efectoGlobalNuevo = globalData?.efecto_actual || "inicial";
+      const efectoGlobalNuevo = globalRes.data?.efecto_actual || "inicial";
+      const efectoCeldaNuevo = await getNombreEfecto(celdaRes.data.efecto_id);
+      
+      setLetra(celdaRes.data.letra_asignada);
       setEfectoGlobal(efectoGlobalNuevo);
-
-      // 2. Obtener efecto de la celda
-      const { data: miCeldaData } = await supabase
-        .from("celdas")
-        .select("estado_celda, efecto_id, letra_asignada")
-        .eq("id", celdaId)
-        .single();
-      
-      if (!miCeldaData || miCeldaData.estado_celda === 0) return liberarMiCelda();
-
-      setLetra(miCeldaData.letra_asignada);
-      const efectoCeldaNuevo = await getNombreEfecto(miCeldaData.efecto_id);
       setEfecto(efectoCeldaNuevo);
       
-      // 3. Decidir qué efecto usar y actuar
       const efectoFinal = efectoGlobalNuevo !== 'inicial' ? efectoGlobalNuevo : efectoCeldaNuevo;
       
       if (efectoFinal !== prevEfectoRef.current) {
@@ -328,32 +287,28 @@ export default function EfectoPage() {
     const intervalId = setInterval(verificarEstado, 1000);
     verificarEstado();
     
-    // Función de limpieza
     return () => {
       clearInterval(intervalId);
-      releaseCamera(); // ¡NUEVO! Liberar cámara si el componente se desmonta.
+      releaseCamera();
     };
   }, [celdaId]);
 
-  const efectoActual = efectoGlobal !== "inicial" ? `efecto-${efectoGlobal}` : `efecto-${efecto}`;
+  const efectoActivo = efectoGlobal !== "inicial" ? efectoGlobal : efecto;
+  const claseEfecto = `efecto-${efectoActivo}`;
   
-  // No mostrar efectos de pantalla si el flash físico está activo
-  const claseEfecto = efectoActual.includes("flash-fisico-") ? "efecto-apagon" : efectoActual;
+  const claseFondo = efectoActivo.startsWith("flash-fisico-") ? "efecto-apagon" : claseEfecto;
 
   if (celdaId) {
     if (claseEfecto === "efecto-mostrar-letra" && letra) {
       return (
-        <div className={`container-letra ${claseEfecto}`}>
+        <div className={`container-letra ${claseFondo}`}>
           <span className="letra-display">{letra}</span>
         </div>
       );
     }
 
     return (
-      <div
-        className={`container-confirmacion ${claseEfecto}`}
-        onClick={handleScreenTap}
-      >
+      <div className={`container-confirmacion ${claseFondo}`} onClick={handleScreenTap}>
         <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
           <h1>¡Listo!</h1>
           <p>Tu posición está confirmada.</p>
@@ -380,16 +335,12 @@ export default function EfectoPage() {
         <p>{mensaje}</p>
         <div
           className="matriz-grid-seleccion"
-          style={{
-            gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)`,
-          }}
+          style={{ gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)` }}
         >
           {celdas.map((celda) => (
             <button
               key={celda.id}
-              className={`celda-seleccion ${
-                celda.estado_celda === 1 ? "ocupada" : "libre"
-              }`}
+              className={`celda-seleccion ${celda.estado_celda === 1 ? "ocupada" : "libre"}`}
               onClick={() => seleccionarCelda(celda)}
               disabled={isPending || celda.estado_celda === 1}
               title={`Fila ${celda.fila}, Columna ${celda.columna}`}
@@ -406,11 +357,7 @@ export default function EfectoPage() {
       <p>{mensaje}</p>
       <div className="lista-matrices">
         {allMatrices.map((matriz) => (
-          <button
-            key={matriz.id}
-            onClick={() => cargarCeldasDeMatriz(matriz)}
-            className="boton-matriz"
-          >
+          <button key={matriz.id} onClick={() => cargarCeldasDeMatriz(matriz)} className="boton-matriz">
             {matriz.nombre}
           </button>
         ))}

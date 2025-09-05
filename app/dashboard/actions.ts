@@ -46,22 +46,6 @@ export async function syncPredefinedEfectos() {
       nombre_css: "ola",
       descripcion: "Una ola de colores azul y rojo.",
     },
-    // --- ¡NUEVOS EFECTOS DE FLASHEO! ---
-    {
-      nombre: "Flash Lento (Pantalla)",
-      nombre_css: "flash-lento",
-      descripcion: "Parpadeo lento de luz blanca en la pantalla.",
-    },
-    {
-      nombre: "Flash Rápido (Pantalla)",
-      nombre_css: "flash-rapido",
-      descripcion: "Parpadeo rápido de luz blanca en la pantalla.",
-    },
-    {
-      nombre: "Flash Random (Pantalla)",
-      nombre_css: "flash-random",
-      descripcion: "Parpadeo con colores aleatorios en la pantalla.",
-    },
     // --- ¡NUEVO! EFECTOS DE FLASH FÍSICO ---
     {
       nombre: "Flash Físico Lento",
