@@ -29,11 +29,108 @@ export default function EfectoPage() {
   const [mensaje, setMensaje] = useState("Cargando eventos...");
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // --- Referencia para el Wake Lock ---
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-
   const [isPending, startTransition] = useTransition();
+
+  // --- ¡NUEVO! Refs para manejar el flash físico ---
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const prevEfectoRef = useRef<string>("inicial");
+
+  // --- ¡NUEVO! Función para controlar el flash (torch) ---
+  const controlFlash = async (state: boolean) => {
+    if (
+      videoTrackRef.current &&
+      (videoTrackRef.current.getCapabilities() as any).torch
+    ) {
+      try {
+        await videoTrackRef.current.applyConstraints({
+          advanced: [{ torch: state }] as any,
+        });
+      } catch (err) {
+        console.error("Error al controlar el flash:", err);
+      }
+    }
+  };
+
+  // --- ¡NUEVO! Función para detener cualquier patrón de flasheo ---
+  const stopFlashing = () => {
+    if (flashIntervalRef.current) {
+      clearInterval(flashIntervalRef.current);
+      flashIntervalRef.current = null;
+    }
+    controlFlash(false); // Siempre apagar el flash al detener
+  };
+
+  // --- ¡NUEVO! Función para iniciar un patrón de flasheo ---
+  const startFlashing = (flashType: string) => {
+    stopFlashing(); // Detener cualquier flash anterior
+
+    let pattern: number[] = []; // [on, off, on, off, ...]
+    switch (flashType) {
+      case "flash-fisico-lento":
+        pattern = [1000, 1000]; // 1s on, 1s off
+        break;
+      case "flash-fisico-rapido":
+        pattern = [200, 200]; // 0.2s on, 0.2s off
+        break;
+      case "flash-fisico-sos":
+        pattern = [150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100, 150, 100, 150, 800];
+        break;
+      default:
+        return;
+    }
+
+    let i = 0;
+    const executePattern = () => {
+      controlFlash(i % 2 === 0); // Alternar on/off
+      const duration = pattern[i % pattern.length];
+      i++;
+      flashIntervalRef.current = setTimeout(executePattern, duration);
+    };
+
+    executePattern();
+  };
+
+  // --- ¡NUEVO! Función para inicializar la cámara y obtener permisos ---
+  const initCameraForFlash = async (): Promise<boolean> => {
+    if (videoTrackRef.current) return true; // Ya está inicializada
+
+    if (!("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)) {
+      alert("Tu navegador no soporta el control del flash.");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, // Pedir cámara trasera
+      });
+      const track = stream.getVideoTracks()[0];
+      // Usar type assertion para acceder a 'torch'
+      if (!(track.getCapabilities() as any).torch) {
+        alert("Tu dispositivo no parece tener un flash controlable.");
+        track.stop(); // Liberar la cámara si no hay flash
+        return false;
+      }
+      videoTrackRef.current = track;
+      return true;
+    } catch (err) {
+      alert("Necesitamos permiso para usar la cámara y poder controlar el flash.");
+      console.error("Error al obtener acceso a la cámara:", err);
+      return false;
+    }
+  };
+  
+  // --- ¡NUEVO! Función para liberar la cámara y apagar el flash ---
+  const releaseCamera = () => {
+    stopFlashing();
+    if (videoTrackRef.current) {
+      videoTrackRef.current.stop();
+      videoTrackRef.current = null;
+      console.log("Cámara liberada.");
+    }
+  };
+
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
@@ -84,6 +181,7 @@ export default function EfectoPage() {
   const liberarMiCelda = async () => {
     if (!celdaId) return;
     startTransition(async () => {
+      releaseCamera(); // ¡NUEVO! Asegurarse de liberar la cámara al salir.
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
       sessionStorage.removeItem("miCeldaInfo");
@@ -141,7 +239,6 @@ export default function EfectoPage() {
     };
   }, []);
 
-  // --- ¡CORRECCIÓN! useEffect mejorado para mantener la pantalla encendida ---
   useEffect(() => {
     const requestWakeLock = async () => {
       if ("wakeLock" in navigator && celdaId) {
@@ -164,19 +261,14 @@ export default function EfectoPage() {
       }
     };
 
-    // Activa el lock cuando el usuario entra en modo efecto
     requestWakeLock();
-
-    // Vuelve a activarlo si el usuario cambia de pestaña y regresa
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         requestWakeLock();
       }
     };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Limpieza: se ejecuta cuando el usuario sale del modo efecto (celdaId cambia a null)
     return () => {
       releaseWakeLock();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -185,35 +277,68 @@ export default function EfectoPage() {
 
   useEffect(() => {
     if (!celdaId) return;
+
+    const handleEfectoChange = async (efectoActual: string) => {
+        // --- ¡NUEVA LÓGICA PARA EL FLASH FÍSICO! ---
+        if (efectoActual.startsWith("flash-fisico-")) {
+            const cameraReady = await initCameraForFlash();
+            if (cameraReady) {
+                startFlashing(efectoActual);
+            }
+        } 
+        // Si el efecto anterior era de flash y el nuevo no, detenerlo.
+        else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
+            stopFlashing();
+        }
+        prevEfectoRef.current = efectoActual;
+    };
+
     const verificarEstado = async () => {
-      const { data: miCeldaData } = await supabase
-        .from("celdas")
-        .select("estado_celda, efecto_id, letra_asignada")
-        .eq("id", celdaId)
-        .single();
-      if (!miCeldaData || miCeldaData.estado_celda === 0)
-        return liberarMiCelda();
-
-      setLetra(miCeldaData.letra_asignada);
-      const nombreEfectoNuevo = await getNombreEfecto(miCeldaData.efecto_id);
-      if (nombreEfectoNuevo !== efecto) setEfecto(nombreEfectoNuevo);
-
+      // 1. Obtener efecto global
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select("efecto_actual")
         .eq("id", 1)
         .single();
-      if (globalData && globalData.efecto_actual !== efectoGlobal) {
-        setEfectoGlobal(globalData.efecto_actual || "inicial");
+      
+      const efectoGlobalNuevo = globalData?.efecto_actual || "inicial";
+      setEfectoGlobal(efectoGlobalNuevo);
+
+      // 2. Obtener efecto de la celda
+      const { data: miCeldaData } = await supabase
+        .from("celdas")
+        .select("estado_celda, efecto_id, letra_asignada")
+        .eq("id", celdaId)
+        .single();
+      
+      if (!miCeldaData || miCeldaData.estado_celda === 0) return liberarMiCelda();
+
+      setLetra(miCeldaData.letra_asignada);
+      const efectoCeldaNuevo = await getNombreEfecto(miCeldaData.efecto_id);
+      setEfecto(efectoCeldaNuevo);
+      
+      // 3. Decidir qué efecto usar y actuar
+      const efectoFinal = efectoGlobalNuevo !== 'inicial' ? efectoGlobalNuevo : efectoCeldaNuevo;
+      
+      if (efectoFinal !== prevEfectoRef.current) {
+        handleEfectoChange(efectoFinal);
       }
     };
+
     const intervalId = setInterval(verificarEstado, 1000);
     verificarEstado();
-    return () => clearInterval(intervalId);
-  }, [celdaId, efecto, efectoGlobal]);
+    
+    // Función de limpieza
+    return () => {
+      clearInterval(intervalId);
+      releaseCamera(); // ¡NUEVO! Liberar cámara si el componente se desmonta.
+    };
+  }, [celdaId]);
 
-  const claseEfecto =
-    efectoGlobal !== "inicial" ? `efecto-${efectoGlobal}` : `efecto-${efecto}`;
+  const efectoActual = efectoGlobal !== "inicial" ? `efecto-${efectoGlobal}` : `efecto-${efecto}`;
+  
+  // No mostrar efectos de pantalla si el flash físico está activo
+  const claseEfecto = efectoActual.includes("flash-fisico-") ? "efecto-apagon" : efectoActual;
 
   if (celdaId) {
     if (claseEfecto === "efecto-mostrar-letra" && letra) {
