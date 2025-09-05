@@ -38,10 +38,13 @@ export default function EfectoPage() {
 
   // --- CORRECCIÓN: Función de control de flash mejorada ---
   const controlFlash = async (state: boolean) => {
-    if (videoTrackRef.current && videoTrackRef.current.getCapabilities().torch) {
+    if (
+      videoTrackRef.current &&
+      (videoTrackRef.current.getCapabilities() as any).torch
+    ) {
       try {
         await videoTrackRef.current.applyConstraints({
-          advanced: [{ torch: state }],
+          advanced: [{ torch: state } as any],
         });
       } catch (err) {
         console.error("Error al controlar el flash:", err);
@@ -101,7 +104,7 @@ export default function EfectoPage() {
       const track = stream.getVideoTracks()[0];
       
       // Si no hay 'torch', lo reportamos en consola y devolvemos false sin alertar.
-      if (!track.getCapabilities().torch) {
+      if (!(track.getCapabilities() as any).torch) {
         console.error("Flash Control: Torch capability not supported on this device/track.");
         track.stop();
         return false;
