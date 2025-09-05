@@ -74,10 +74,12 @@ export default function DashboardClient({
   }, [selectedMatrizId, getCeldasAction, isAuthenticated]);
   
   useEffect(() => {
+    // Limpiar el intervalo de la ola si el componente se desmonta o cambia la matriz
     return () => {
       if (waveIntervalId) clearInterval(waveIntervalId);
     };
   }, [waveIntervalId, selectedMatrizId]);
+
 
   const handleAuth = (e: FormEvent) => {
     e.preventDefault();
@@ -92,7 +94,7 @@ export default function DashboardClient({
   };
 
   const handleSelectMatriz = (id: number) => {
-    stopWave();
+    stopWave(); // Detener cualquier ola al cambiar de matriz
     setSelectedMatrizId(id);
     setSelectedCeldas(new Set());
   };
@@ -180,10 +182,9 @@ export default function DashboardClient({
       setWaveIntervalId(null);
     }
     if (selectedMatrizId) {
-      const efectoInicial = efectos.find(e => e.nombre_css === 'inicial');
-      const celdasToClear = celdasPorMatriz[selectedMatrizId]?.map(c => c.id) || [];
-      if (celdasToClear.length > 0 && efectoInicial) {
-        await applyEfectoAction(celdasToClear, efectoInicial.id);
+      const celdasToClear = celdasPorMatriz[selectedMatrizId!]?.map(c => c.id) || [];
+      if (celdasToClear.length > 0) {
+        await applyEfectoAction(celdasToClear, null); // Resetea a efecto inicial (null)
         await refreshCurrentMatrix();
       }
     }
@@ -198,8 +199,7 @@ export default function DashboardClient({
 
     const celdas = celdasPorMatriz[selectedMatrizId] || [];
     const efectoActivo = efectos.find(e => e.nombre_css === 'ola-activa');
-    const efectoInicial = efectos.find(e => e.nombre_css === 'inicial');
-    if (!efectoActivo || !efectoInicial) return;
+    if (!efectoActivo) return;
 
     let step = 0;
     const interval = setInterval(() => {
@@ -223,7 +223,7 @@ export default function DashboardClient({
           const centerX = Math.floor(matriz.columnas / 2);
           const centerY = Math.floor(matriz.filas / 2);
           const maxDist = Math.max(centerX, centerY, matriz.columnas - centerX, matriz.filas - centerY);
-          const totalSteps = maxDist + 2; // +2 para incluir el centro y un paso de limpieza
+          const totalSteps = maxDist + 2; 
           const currentRing = step % totalSteps;
           
           if(currentRing <= maxDist) {
@@ -235,8 +235,7 @@ export default function DashboardClient({
         step++;
 
         if (celdasParaActivarIds.length > 0) await applyEfectoAction(celdasParaActivarIds, efectoActivo.id);
-        if (celdasParaDesactivarIds.length > 0) await applyEfectoAction(celdasParaDesactivarIds, efectoInicial.id);
-        await refreshCurrentMatrix();
+        if (celdasParaDesactivarIds.length > 0) await applyEfectoAction(celdasParaDesactivarIds, null);
       });
       
     }, 400); // Velocidad de la ola
@@ -248,6 +247,8 @@ export default function DashboardClient({
     await stopWave();
     
     if (efectoCss.startsWith('ola-')) {
+      // ↓↓↓ LÍNEA AÑADIDA ↓↓↓
+      startTransition(() => applyGlobalEfectoAction(efectoCss)); 
       startWave(efectoCss);
     } else {
       startTransition(() => applyGlobalEfectoAction(efectoCss));
