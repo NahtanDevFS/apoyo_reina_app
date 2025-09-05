@@ -51,7 +51,7 @@ export async function applyEfectoToCeldas( celdasIds: number[], efectoId: number
   
   const { error } = await supabaseAdmin.from("celdas").update({
     efecto_id: efectoId,
-    letra_asignada: null,
+    letra_asignada: null, 
   }).in("id", celdasIds);
 
   if(error) return { error: error.message };
@@ -59,6 +59,7 @@ export async function applyEfectoToCeldas( celdasIds: number[], efectoId: number
   revalidatePath("/dashboard");
   return { success: true };
 }
+
 
 export async function applyTextoToCelda(celdaId: number, texto: string) {
     const { data: efecto } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
@@ -81,6 +82,7 @@ export async function liberarCeldas(celdaIds: number[]) {
     return { success: true };
 }
 
+// --- ¡NUEVA! Acción para liberar todas las celdas de una matriz ---
 export async function liberarMatrizCompleta(matrizId: number) {
     if (!matrizId) return { error: "No se ha seleccionado una matriz." };
     const { error } = await supabaseAdmin
@@ -93,6 +95,7 @@ export async function liberarMatrizCompleta(matrizId: number) {
     return { success: true, message: "Todas las celdas han sido liberadas." };
 }
 
+// --- ¡NUEVA! Acción para aplicar texto a toda una matriz ---
 export async function applyTextoToMatriz(matrizId: number, texto: string) {
     if (!matrizId) return { error: "No se ha seleccionado una matriz." };
     const { data: efecto } = await supabaseAdmin.from("efectos").select("id").eq("nombre_css", "mostrar-letra").single();
@@ -127,3 +130,4 @@ export async function createMatriz(formData: FormData) {
   revalidatePath("/dashboard");
   return { success: true };
 }
+
