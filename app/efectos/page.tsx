@@ -18,7 +18,7 @@ export default function EfectoPage() {
   const [efecto, setEfecto] = useState<string>("inicial");
   const [efectoGlobal, setEfectoGlobal] = useState<string>("inicial");
   const [textoAsignado, setTextoAsignado] = useState<string | null>(null);
-  const [letraMostrada, setLetraMostrada] = useState<string | null>(null); // ¡NUEVO!
+  const [letraMostrada, setLetraMostrada] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("Cargando eventos...");
   const [isUiVisible, setIsUiVisible] = useState(true);
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -26,11 +26,35 @@ export default function EfectoPage() {
 
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const textoIntervalRef = useRef<NodeJS.Timeout | null>(null); // ¡NUEVO!
+  const textoIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const prevEfectoRef = useRef<string>("inicial");
+  const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTimestampRef = useRef<string | null>(null);
 
-  // ... (Funciones de flash sin cambios) ...
+  // --- ¡MODIFICADO! El retraso ahora es de 3.5 segundos ---
+  const SYNCHRONIZATION_DELAY_MS = 3500;
+
+  const scheduleEffect = (efecto: string, texto: string | null, timestamp: string) => {
+    if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
+
+    const serverTime = new Date(timestamp).getTime();
+    const clientTime = new Date().getTime();
+    const executionTime = serverTime + SYNCHRONIZATION_DELAY_MS;
+    
+    const delay = Math.max(0, executionTime - clientTime);
+
+    efectoTimeoutRef.current = setTimeout(() => {
+      setEfecto(efecto); // Cambiamos el estado aquí para que la UI reaccione en el momento justo
+      if (efecto === 'mostrar-letra' && texto) {
+        startTextoLoop(texto);
+      } else {
+        stopTextoLoop();
+      }
+      // La lógica de flash se podría mover aquí si se reactiva
+    }, delay);
+  };
+
   const controlFlash = async (state: boolean) => {
     if (videoTrackRef.current && (videoTrackRef.current.getCapabilities() as any).torch) {
       try {
@@ -38,10 +62,12 @@ export default function EfectoPage() {
       } catch (err) { console.error("Error al controlar el flash:", err); }
     }
   };
+
   const stopFlashing = () => {
     if (flashIntervalRef.current) { clearTimeout(flashIntervalRef.current); flashIntervalRef.current = null; }
     controlFlash(false);
   };
+
   const startFlashing = (flashType: string) => {
     stopFlashing();
     let pattern: number[] = [];
@@ -60,6 +86,7 @@ export default function EfectoPage() {
     };
     executePattern();
   };
+
   const initCameraForFlash = async (): Promise<boolean> => {
     if (videoTrackRef.current) return true;
     if (!("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)) { console.error("Flash Control: MediaDevices API not supported."); return false; }
@@ -71,33 +98,36 @@ export default function EfectoPage() {
       return true;
     } catch (err) { console.error("Flash Control: Could not get camera access.", err); return false; }
   };
+  
   const releaseCamera = () => {
     stopFlashing();
     if (videoTrackRef.current) { videoTrackRef.current.stop(); videoTrackRef.current = null; console.log("Cámara liberada."); }
   };
 
-  // --- ¡NUEVO! Lógica para el bucle de texto ---
   const stopTextoLoop = () => {
     if (textoIntervalRef.current) {
       clearInterval(textoIntervalRef.current);
       textoIntervalRef.current = null;
     }
+    setLetraMostrada(null);
   };
 
   const startTextoLoop = (texto: string) => {
     stopTextoLoop();
     if (!texto || texto.length <= 1) {
-      setLetraMostrada(texto); // Si es una sola letra, la muestra directamente
+      setLetraMostrada(texto);
       return;
     }
 
     let index = 0;
+    setLetraMostrada(texto[index]);
+    index = (index + 1) % texto.length;
+    
     textoIntervalRef.current = setInterval(() => {
       setLetraMostrada(texto[index]);
       index = (index + 1) % texto.length;
-    }, 800); // Cambia este valor para ajustar la velocidad
+    }, 800);
   };
-
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
@@ -108,6 +138,7 @@ export default function EfectoPage() {
   const seleccionarCelda = async (celda: Celda) => {
     if (celda.estado_celda === 1) return alert("Esta posición ya está ocupada.");
     if (!selectedMatriz) return;
+    
     startTransition(async () => {
       const { data, error } = await supabase.rpc("ocupar_celda_especifica", { matriz_id_in: selectedMatriz.id, fila_in: celda.fila, columna_in: celda.columna });
       if (error || !data || data.length === 0) {
@@ -128,7 +159,8 @@ export default function EfectoPage() {
     if (!celdaId) return;
     startTransition(async () => {
       releaseCamera();
-      stopTextoLoop(); // ¡NUEVO!
+      stopTextoLoop();
+      if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
       sessionStorage.removeItem("miCeldaInfo");
@@ -168,7 +200,6 @@ export default function EfectoPage() {
     uiTimeoutRef.current = setTimeout(() => setIsUiVisible(false), 2000);
   };
   
-  // Effects (WakeLock, Cargar inicial) sin cambios...
   useEffect(() => {
     const idGuardado = sessionStorage.getItem("miCeldaId");
     const infoGuardada = sessionStorage.getItem("miCeldaInfo");
@@ -200,7 +231,6 @@ export default function EfectoPage() {
     if (!celdaId) return;
 
     const handleEfectoChange = async (efectoActual: string, texto: string | null) => {
-      // Manejo del flash
       if (efectoActual.startsWith("flash-fisico-")) {
         stopTextoLoop();
         const cameraReady = await initCameraForFlash();
@@ -209,56 +239,48 @@ export default function EfectoPage() {
         stopFlashing();
       }
 
-      // --- ¡NUEVO! Manejo del texto ---
-      if (efectoActual === 'mostrar-letra' && texto) {
-        startTextoLoop(texto);
-      } else {
-        stopTextoLoop();
-        setLetraMostrada(null);
-      }
-
+      // La lógica del texto se mueve a `scheduleEffect` para sincronizarse
       prevEfectoRef.current = efectoActual;
     };
 
     const verificarEstado = async () => {
       if(!celdaId) return;
       const [globalRes, celdaRes] = await Promise.all([
-          supabase.from("estado_concierto").select("efecto_actual").eq("id", 1).single(),
+          supabase.from("estado_concierto").select("efecto_actual, efecto_timestamp").eq("id", 1).single(),
           supabase.from("celdas").select("estado_celda, efecto_id, letra_asignada").eq("id", celdaId).single()
       ]);
 
       if (!celdaRes.data || celdaRes.data.estado_celda === 0) return liberarMiCelda();
       
-      const efectoGlobalNuevo = globalRes.data?.efecto_actual || "inicial";
-      const efectoCeldaNuevo = await getNombreEfecto(celdaRes.data.efecto_id);
-      
-      setTextoAsignado(celdaRes.data.letra_asignada);
-      setEfectoGlobal(efectoGlobalNuevo);
-      setEfecto(efectoCeldaNuevo);
-      
-      const efectoFinal = efectoGlobalNuevo !== 'inicial' ? efectoGlobalNuevo : efectoCeldaNuevo;
-      
-      if (efectoFinal !== prevEfectoRef.current || celdaRes.data.letra_asignada !== textoAsignado) {
-        handleEfectoChange(efectoFinal, celdaRes.data.letra_asignada);
+      const timestamp = globalRes.data?.efecto_timestamp;
+      if (timestamp && timestamp !== lastTimestampRef.current) {
+        lastTimestampRef.current = timestamp;
+
+        const efectoGlobalNuevo = globalRes.data?.efecto_actual || "inicial";
+        const efectoCeldaNuevo = await getNombreEfecto(celdaRes.data.efecto_id);
+        const textoCelda = celdaRes.data.letra_asignada;
+        const efectoFinal = efectoGlobalNuevo !== 'inicial' ? efectoGlobalNuevo : efectoCeldaNuevo;
+        
+        scheduleEffect(efectoFinal, textoCelda, timestamp);
+        handleEfectoChange(efectoFinal, textoCelda); // Para efectos no sincronizados como el flash
       }
     };
 
-    const intervalId = setInterval(verificarEstado, 800);
     verificarEstado();
+    const intervalId = setInterval(verificarEstado, 1000);
     
     return () => {
       clearInterval(intervalId);
       releaseCamera();
       stopTextoLoop();
+      if(efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
-  }, [celdaId, textoAsignado]); // Depender de textoAsignado para reiniciar el bucle si cambia
+  }, [celdaId]);
 
-  const efectoActivo = efectoGlobal !== "inicial" ? efectoGlobal : efecto;
-  const claseEfecto = `efecto-${efectoActivo}`;
-  const claseFondo = efectoActivo.startsWith("flash-fisico-") ? "efecto-apagon" : claseEfecto;
-
+  const claseFondo = `efecto-${efecto}`;
+  
   if (celdaId) {
-    if (claseEfecto === "efecto-mostrar-letra" && letraMostrada) {
+    if (efecto === "mostrar-letra" && letraMostrada) {
       return (
         <div className={`container-letra ${claseFondo}`}>
           <span className="letra-display">{letraMostrada}</span>
@@ -312,3 +334,4 @@ export default function EfectoPage() {
     </div>
   );
 }
+
