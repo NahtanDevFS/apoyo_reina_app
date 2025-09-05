@@ -30,46 +30,70 @@
   animation: pulso-rojo 2s infinite ease-in-out;
 }
 @keyframes pulso-rojo {
-  0% { background-color: #200000; }
-  50% { background-color: #ff0000; }
-  100% { background-color: #200000; }
+  0% {
+    background-color: #200000;
+  }
+  50% {
+    background-color: #ff0000;
+  }
+  100% {
+    background-color: #200000;
+  }
 }
 .efecto-arcoiris {
   background-size: 400% 400%;
-  background-image: linear-gradient(-45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8);
+  background-image: linear-gradient(
+    -45deg,
+    #ff0000,
+    #ff7300,
+    #fffb00,
+    #48ff00,
+    #00ffd5,
+    #002bff,
+    #7a00ff,
+    #ff00c8
+  );
   animation: fondo-arcoiris 15s ease infinite;
 }
 @keyframes fondo-arcoiris {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 .efecto-parpadeo {
   animation: parpadeo-luz 0.5s infinite;
 }
 @keyframes parpadeo-luz {
-  0%, 49% { background-color: white; }
-  50%, 99% { background-color: black; }
-  100% { background-color: white; }
+  0%,
+  49% {
+    background-color: white;
+  }
+  50%,
+  99% {
+    background-color: black;
+  }
+  100% {
+    background-color: white;
+  }
 }
 
 .efecto-mostrar-letra {
   background-color: #000000;
 }
 
-/* --- ¡NUEVO! Estilo para la ola activa --- */
-.efecto-ola-activa {
-  background-color: #8b5cf6; /* Color de acento principal */
-  box-shadow: 0 0 20px #a78bfa;
-  transition: background-color 0.2s ease-in-out;
-}
-
-/* Estilos para la pantalla de la letra */
+/* --- Estilos para la pantalla de la letra --- */
 .container-letra {
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-grow: 1; /* Para que ocupe el espacio disponible */
+  min-height: 100vh;
+  width: 100vw;
 }
 
 .letra-display {
@@ -80,6 +104,7 @@
   color: #ffffff;
 }
 
+/* --- Contenedor para la información que se oculta --- */
 .info-container {
   display: flex;
   flex-direction: column;
@@ -92,9 +117,9 @@
   opacity: 1;
 }
 
+/* --- Botón de salir con transición --- */
 .boton-salir {
-  position: absolute; /* Para posicionarlo sobre el contenido */
-  bottom: 2rem;
+  margin-top: 2rem;
   padding: 12px 24px;
   font-size: 1rem;
   color: white;
@@ -105,7 +130,6 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease-in-out;
-  z-index: 10;
 }
 .boton-salir.visible {
   opacity: 1;
@@ -116,7 +140,7 @@
   cursor: not-allowed;
 }
 
-/* Estilos de la Interfaz de Selección */
+/* --- Estilos de la Interfaz --- */
 .matriz-grid-seleccion {
   display: grid;
   gap: 8px;
@@ -131,10 +155,17 @@
   cursor: pointer;
   transition: all 0.2s ease-in-out;
 }
-.celda-seleccion.libre { background-color: #333; }
-.celda-seleccion.libre:hover { background-color: #007bff; transform: scale(1.1); }
-.celda-seleccion.ocupada { background-color: #8b0000; cursor: not-allowed; }
-
+.celda-seleccion.libre {
+  background-color: #333;
+}
+.celda-seleccion.libre:hover {
+  background-color: #007bff;
+  transform: scale(1.1);
+}
+.celda-seleccion.ocupada {
+  background-color: #8b0000;
+  cursor: not-allowed;
+}
 .container-confirmacion h1 {
   font-size: 3rem;
   margin-bottom: 1rem;
@@ -148,9 +179,18 @@
   animation: pulso-verde 2s infinite;
 }
 @keyframes pulso-verde {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 10px 20px rgba(0, 255, 0, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 10px 20px rgba(0, 255, 0, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 255, 0, 0);
+  }
 }
 .lista-matrices {
   display: flex;
@@ -170,7 +210,10 @@
   cursor: pointer;
   transition: background-color 0.2s, transform 0.2s;
 }
-.boton-matriz:hover { background-color: #007bff; transform: scale(1.05); }
+.boton-matriz:hover {
+  background-color: #007bff;
+  transform: scale(1.05);
+}
 .boton-volver {
   position: absolute;
   top: 2rem;
@@ -182,4 +225,24 @@
   border-radius: 8px;
   cursor: pointer;
 }
-.boton-volver:hover { background-color: #333; }
+.boton-volver:hover {
+  background-color: #333;
+}
+
+.efecto-ola {
+  background: linear-gradient(270deg, #c62b28, #16709f, #c62b28);
+  background-size: 600% 600%;
+  animation: waveAnimation 4s ease infinite;
+}
+
+@keyframes waveAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}

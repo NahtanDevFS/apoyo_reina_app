@@ -277,7 +277,7 @@ export default function EfectoPage() {
 
         let efectoFinal = "inicial";
         // Si hay un efecto global y NO es una ola, este tiene prioridad.
-        if (efectoGlobalNuevo !== 'inicial' && !efectoGlobalNuevo.startsWith('ola-')) {
+        if (efectoGlobalNuevo !== 'inicial' && !efectoGlobalNuevo.startsWith('efecto-ola')) {
             efectoFinal = efectoGlobalNuevo;
         } else {
             // Si el efecto global es una ola o no hay efecto global, mostramos el de nuestra celda.
