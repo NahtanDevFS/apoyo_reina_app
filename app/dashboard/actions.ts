@@ -41,11 +41,42 @@ export async function syncPredefinedEfectos() {
       nombre_css: "mostrar-letra",
       descripcion: "Muestra una letra específica en pantalla.",
     },
-    // --- ¡NUEVO! Efecto Ola añadido a la lista ---
     {
       nombre: "Efecto Ola",
       nombre_css: "ola",
       descripcion: "Una ola de colores azul y rojo.",
+    },
+    // --- ¡NUEVOS EFECTOS DE FLASHEO! ---
+    {
+      nombre: "Flash Lento (Pantalla)",
+      nombre_css: "flash-lento",
+      descripcion: "Parpadeo lento de luz blanca en la pantalla.",
+    },
+    {
+      nombre: "Flash Rápido (Pantalla)",
+      nombre_css: "flash-rapido",
+      descripcion: "Parpadeo rápido de luz blanca en la pantalla.",
+    },
+    {
+      nombre: "Flash Random (Pantalla)",
+      nombre_css: "flash-random",
+      descripcion: "Parpadeo con colores aleatorios en la pantalla.",
+    },
+    // --- ¡NUEVO! EFECTOS DE FLASH FÍSICO ---
+    {
+      nombre: "Flash Físico Lento",
+      nombre_css: "flash-fisico-lento",
+      descripcion: "Usa el flash de la cámara para un parpadeo lento.",
+    },
+    {
+      nombre: "Flash Físico Rápido",
+      nombre_css: "flash-fisico-rapido",
+      descripcion: "Usa el flash de la cámara para un parpadeo rápido.",
+    },
+    {
+      nombre: "Flash Físico SOS",
+      nombre_css: "flash-fisico-sos",
+      descripcion: "Usa el flash de la cámara para emitir una señal de SOS.",
     },
   ];
 
@@ -53,7 +84,6 @@ export async function syncPredefinedEfectos() {
     .from("efectos")
     .upsert(predefinedEfectos, {
       onConflict: "nombre_css",
-      ignoreDuplicates: true,
     });
 
   if (error) {
