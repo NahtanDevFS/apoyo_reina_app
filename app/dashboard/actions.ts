@@ -26,6 +26,7 @@ export async function syncPredefinedEfectos() {
     { nombre: "Parpadeo", nombre_css: "parpadeo" },
     { nombre: "Inicial", nombre_css: "inicial" },
     { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
+    { nombre: "Efecto Ola", nombre_css: "efecto-ola" }, // Efecto de apoyo para las olas
   ];
   await supabaseAdmin.from("efectos").upsert(predefinedEfectos, { onConflict: "nombre_css" });
   revalidatePath("/dashboard");
