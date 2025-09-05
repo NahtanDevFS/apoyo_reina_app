@@ -376,3 +376,12 @@
   margin-top: 1rem;
   min-height: 20px;
 }
+/* app/dashboard/Dashboard.css */
+/* ... (añadir al final del archivo) ... */
+
+.control-panel .btn-danger {
+  background-color: #991b1b; /* Rojo oscuro */
+}
+.control-panel .btn-danger:hover {
+  background-color: #b91c1c; /* Rojo un poco más claro */
+}

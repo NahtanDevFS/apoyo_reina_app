@@ -6,7 +6,9 @@ import {
   applyEfectoToCeldas,
   applyGlobalEfecto,
   liberarCeldas,
-  applyTextoToCelda, // ¡MODIFICADO! Importamos la nueva acción
+  applyTextoToCelda,
+  liberarMatrizCompleta,   // ¡NUEVO!
+  applyTextoToMatriz,    // ¡NUEVO!
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
@@ -34,7 +36,9 @@ export default async function DashboardPage() {
       applyEfectoAction={applyEfectoToCeldas}
       applyGlobalEfectoAction={applyGlobalEfecto}
       liberarCeldasAction={liberarCeldas}
-      applyLetraAction={applyTextoToCelda} // ¡MODIFICADO! Pasamos la nueva acción
+      applyLetraAction={applyTextoToCelda}
+      liberarMatrizAction={liberarMatrizCompleta} // ¡NUEVO!
+      applyTextoToMatrizAction={applyTextoToMatriz} // ¡NUEVO!
     />
   );
 }
