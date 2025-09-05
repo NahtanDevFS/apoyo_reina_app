@@ -24,15 +24,11 @@ export default function EfectoPage() {
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
-  const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const textoIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-  const prevEfectoRef = useRef<string>("inicial");
   const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTimestampRef = useRef<string | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
 
-  // --- ¡MODIFICADO! El retraso ahora es de 3.5 segundos ---
   const SYNCHRONIZATION_DELAY_MS = 3500;
 
   const scheduleEffect = (efecto: string, texto: string | null, timestamp: string) => {
@@ -45,80 +41,28 @@ export default function EfectoPage() {
     const delay = Math.max(0, executionTime - clientTime);
 
     efectoTimeoutRef.current = setTimeout(() => {
-      setEfecto(efecto); // Cambiamos el estado aquí para que la UI reaccione en el momento justo
+      setEfecto(efecto);
       if (efecto === 'mostrar-letra' && texto) {
         startTextoLoop(texto);
       } else {
         stopTextoLoop();
       }
-      // La lógica de flash se podría mover aquí si se reactiva
     }, delay);
   };
 
-  const controlFlash = async (state: boolean) => {
-    if (videoTrackRef.current && (videoTrackRef.current.getCapabilities() as any).torch) {
-      try {
-        await videoTrackRef.current.applyConstraints({ advanced: [{ torch: state } as any] });
-      } catch (err) { console.error("Error al controlar el flash:", err); }
-    }
-  };
-
-  const stopFlashing = () => {
-    if (flashIntervalRef.current) { clearTimeout(flashIntervalRef.current); flashIntervalRef.current = null; }
-    controlFlash(false);
-  };
-
-  const startFlashing = (flashType: string) => {
-    stopFlashing();
-    let pattern: number[] = [];
-    switch (flashType) {
-      case "flash-fisico-lento": pattern = [1000, 1000]; break;
-      case "flash-fisico-rapido": pattern = [200, 200]; break;
-      case "flash-fisico-sos": pattern = [150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100, 150, 100, 150, 800]; break;
-      default: return;
-    }
-    let i = 0;
-    const executePattern = () => {
-      controlFlash(i % 2 === 0);
-      const duration = pattern[i % pattern.length];
-      i++;
-      flashIntervalRef.current = setTimeout(executePattern, duration);
-    };
-    executePattern();
-  };
-
-  const initCameraForFlash = async (): Promise<boolean> => {
-    if (videoTrackRef.current) return true;
-    if (!("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)) { console.error("Flash Control: MediaDevices API not supported."); return false; }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      const track = stream.getVideoTracks()[0];
-      if (!(track.getCapabilities() as any).torch) { console.error("Flash Control: Torch capability not supported."); track.stop(); return false; }
-      videoTrackRef.current = track;
-      return true;
-    } catch (err) { console.error("Flash Control: Could not get camera access.", err); return false; }
-  };
-  
-  const releaseCamera = () => {
-    stopFlashing();
-    if (videoTrackRef.current) { videoTrackRef.current.stop(); videoTrackRef.current = null; console.log("Cámara liberada."); }
-  };
-
   const stopTextoLoop = () => {
-    if (textoIntervalRef.current) {
-      clearInterval(textoIntervalRef.current);
-      textoIntervalRef.current = null;
-    }
+    if (textoIntervalRef.current) clearInterval(textoIntervalRef.current);
+    textoIntervalRef.current = null;
     setLetraMostrada(null);
   };
 
   const startTextoLoop = (texto: string) => {
     stopTextoLoop();
-    if (!texto || texto.length <= 1) {
+    if (!texto) return;
+    if (texto.length <= 1) {
       setLetraMostrada(texto);
       return;
     }
-
     let index = 0;
     setLetraMostrada(texto[index]);
     index = (index + 1) % texto.length;
@@ -131,14 +75,51 @@ export default function EfectoPage() {
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
-    const { data, error } = await supabase.from("efectos").select("nombre_css").eq("id", efectoId).single();
-    return error || !data ? "inicial" : data.nombre_css;
+    const { data } = await supabase.from("efectos").select("nombre_css").eq("id", efectoId).single();
+    return data?.nombre_css || "inicial";
+  };
+  
+  const liberarMiCelda = async () => {
+    if (!celdaId) return;
+    startTransition(async () => {
+      stopTextoLoop();
+      if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
+      await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
+      sessionStorage.removeItem("miCeldaId");
+      sessionStorage.removeItem("miCeldaInfo");
+      setCeldaId(null);
+      setMiCeldaInfo(null);
+      setIsUiVisible(true);
+      setTextoAsignado(null);
+      setLetraMostrada(null);
+      setEfecto("inicial");
+      setEfectoGlobal("inicial");
+      lastTimestampRef.current = null;
+      cargarTodasLasMatrices();
+    });
+  };
+
+  const cargarTodasLasMatrices = async () => {
+    setMensaje("Cargando eventos disponibles...");
+    setSelectedMatriz(null);
+    const { data, error } = await supabase.from("matrices").select("*").order("nombre");
+    if (error) { setMensaje("No se pudieron cargar los eventos."); return; }
+    setAllMatrices(data);
+    setMensaje("Selecciona tu evento o sección");
+  };
+
+  const cargarCeldasDeMatriz = async (matriz: Matriz) => {
+    setMensaje(`Cargando posiciones para ${matriz.nombre}...`);
+    setSelectedMatriz(matriz);
+    const { data, error } = await supabase.from("celdas").select("id, fila, columna, estado_celda").eq("matriz_id", matriz.id).order("fila, columna");
+    if (error) { setMensaje("No se pudieron cargar las posiciones."); return; }
+    setCeldas(data);
+    setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
   const seleccionarCelda = async (celda: Celda) => {
     if (celda.estado_celda === 1) return alert("Esta posición ya está ocupada.");
     if (!selectedMatriz) return;
-    
     startTransition(async () => {
       const { data, error } = await supabase.rpc("ocupar_celda_especifica", { matriz_id_in: selectedMatriz.id, fila_in: celda.fila, columna_in: celda.columna });
       if (error || !data || data.length === 0) {
@@ -153,45 +134,6 @@ export default function EfectoPage() {
         sessionStorage.setItem("miCeldaInfo", JSON.stringify({ fila: celda.fila, columna: celda.columna }));
       }
     });
-  };
-
-  const liberarMiCelda = async () => {
-    if (!celdaId) return;
-    startTransition(async () => {
-      releaseCamera();
-      stopTextoLoop();
-      if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
-      await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
-      sessionStorage.removeItem("miCeldaId");
-      sessionStorage.removeItem("miCeldaInfo");
-      setCeldaId(null);
-      setMiCeldaInfo(null);
-      setIsUiVisible(true);
-      setTextoAsignado(null);
-      setLetraMostrada(null);
-      setEfecto("inicial");
-      setEfectoGlobal("inicial");
-      prevEfectoRef.current = "inicial";
-      cargarTodasLasMatrices();
-    });
-  };
-
-  const cargarTodasLasMatrices = async () => {
-    setMensaje("Cargando eventos disponibles...");
-    setSelectedMatriz(null);
-    const { data, error } = await supabase.from("matrices").select("*").order("nombre");
-    if (error) return setMensaje("No se pudieron cargar los eventos.");
-    setAllMatrices(data);
-    setMensaje("Selecciona tu evento o sección");
-  };
-
-  const cargarCeldasDeMatriz = async (matriz: Matriz) => {
-    setMensaje(`Cargando posiciones para ${matriz.nombre}...`);
-    setSelectedMatriz(matriz);
-    const { data, error } = await supabase.from("celdas").select("id, fila, columna, estado_celda").eq("matriz_id", matriz.id).order("fila, columna");
-    if (error) return setMensaje("No se pudieron cargar las posiciones.");
-    setCeldas(data);
-    setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
   const handleScreenTap = () => {
@@ -230,39 +172,31 @@ export default function EfectoPage() {
   useEffect(() => {
     if (!celdaId) return;
 
-    const handleEfectoChange = async (efectoActual: string, texto: string | null) => {
-      if (efectoActual.startsWith("flash-fisico-")) {
-        stopTextoLoop();
-        const cameraReady = await initCameraForFlash();
-        if (cameraReady) startFlashing(efectoActual);
-      } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
-        stopFlashing();
-      }
-
-      // La lógica del texto se mueve a `scheduleEffect` para sincronizarse
-      prevEfectoRef.current = efectoActual;
-    };
-
     const verificarEstado = async () => {
-      if(!celdaId) return;
-      const [globalRes, celdaRes] = await Promise.all([
-          supabase.from("estado_concierto").select("efecto_actual, efecto_timestamp").eq("id", 1).single(),
-          supabase.from("celdas").select("estado_celda, efecto_id, letra_asignada").eq("id", celdaId).single()
-      ]);
+      const { data: estadoGlobal } = await supabase
+        .from("estado_concierto")
+        .select("efecto_actual, efecto_timestamp")
+        .eq("id", 1)
+        .single();
 
-      if (!celdaRes.data || celdaRes.data.estado_celda === 0) return liberarMiCelda();
-      
-      const timestamp = globalRes.data?.efecto_timestamp;
+      const { data: miCeldaData } = await supabase
+        .from("celdas")
+        .select("estado_celda, efecto_id, letra_asignada")
+        .eq("id", celdaId)
+        .single();
+
+      if (!miCeldaData || miCeldaData.estado_celda === 0) return liberarMiCelda();
+
+      const timestamp = estadoGlobal?.efecto_timestamp;
       if (timestamp && timestamp !== lastTimestampRef.current) {
         lastTimestampRef.current = timestamp;
 
-        const efectoGlobalNuevo = globalRes.data?.efecto_actual || "inicial";
-        const efectoCeldaNuevo = await getNombreEfecto(celdaRes.data.efecto_id);
-        const textoCelda = celdaRes.data.letra_asignada;
-        const efectoFinal = efectoGlobalNuevo !== 'inicial' ? efectoGlobalNuevo : efectoCeldaNuevo;
+        const efectoGlobal = estadoGlobal?.efecto_actual || "inicial";
+        const efectoCelda = await getNombreEfecto(miCeldaData.efecto_id);
+        const textoCelda = miCeldaData.letra_asignada;
+        const efectoFinal = efectoGlobal !== 'inicial' ? efectoGlobal : efectoCelda;
         
         scheduleEffect(efectoFinal, textoCelda, timestamp);
-        handleEfectoChange(efectoFinal, textoCelda); // Para efectos no sincronizados como el flash
       }
     };
 
@@ -271,30 +205,30 @@ export default function EfectoPage() {
     
     return () => {
       clearInterval(intervalId);
-      releaseCamera();
+      if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
       stopTextoLoop();
-      if(efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
   }, [celdaId]);
 
-  const claseFondo = `efecto-${efecto}`;
+  const efectoActivo = efectoGlobal !== "inicial" ? efectoGlobal : efecto;
+  const claseFondo = `efecto-${efectoActivo}`;
   
   if (celdaId) {
-    if (efecto === "mostrar-letra" && letraMostrada) {
-      return (
-        <div className={`container-letra ${claseFondo}`}>
-          <span className="letra-display">{letraMostrada}</span>
-        </div>
-      );
-    }
-
     return (
       <div className={`container-confirmacion ${claseFondo}`} onClick={handleScreenTap}>
-        <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
-          <h1>¡Listo!</h1>
-          <p>Tu posición está confirmada.</p>
-          <div className="luz-indicadora"></div>
-        </div>
+        
+        {(efecto === "mostrar-letra" && letraMostrada) ? (
+            <div className="container-letra">
+               <span className="letra-display">{letraMostrada}</span>
+            </div>
+          ) : (
+            <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
+              <h1>¡Listo!</h1>
+              <p>Tu posición está confirmada.</p>
+              <div className="luz-indicadora"></div>
+            </div>
+          )
+        }
         <button onClick={liberarMiCelda} disabled={isPending} className={`boton-salir ${isUiVisible ? "visible" : ""}`}>
           Salir
         </button>
@@ -334,4 +268,3 @@ export default function EfectoPage() {
     </div>
   );
 }
-
