@@ -46,23 +46,7 @@ export async function syncPredefinedEfectos() {
       nombre_css: "ola",
       descripcion: "Una ola de colores azul y rojo.",
     },
-    // --- ¡NUEVOS EFECTOS DE FLASHEO! ---
-    {
-      nombre: "Flash Lento (Pantalla)",
-      nombre_css: "flash-lento",
-      descripcion: "Parpadeo lento de luz blanca en la pantalla.",
-    },
-    {
-      nombre: "Flash Rápido (Pantalla)",
-      nombre_css: "flash-rapido",
-      descripcion: "Parpadeo rápido de luz blanca en la pantalla.",
-    },
-    {
-      nombre: "Flash Random (Pantalla)",
-      nombre_css: "flash-random",
-      descripcion: "Parpadeo con colores aleatorios en la pantalla.",
-    },
-    // --- ¡NUEVO! EFECTOS DE FLASH FÍSICO ---
+    // --- EFECTOS DE FLASH FÍSICO ---
     {
       nombre: "Flash Físico Lento",
       nombre_css: "flash-fisico-lento",
@@ -95,26 +79,31 @@ export async function syncPredefinedEfectos() {
   return { success: true, message: "Efectos sincronizados correctamente." };
 }
 
-export async function applyLetraToCelda(celdaId: number, letra: string) {
+// --- ¡MODIFICADO! Ahora acepta una palabra o frase ---
+export async function applyTextoToCelda(celdaId: number, texto: string) {
   const { data: efecto, error: efectoError } = await supabaseAdmin
     .from("efectos")
     .select("id")
     .eq("nombre_css", "mostrar-letra")
     .single();
+
   if (efectoError || !efecto) {
     return {
       error: "El efecto 'Mostrar Letra' no existe. Sincroniza los efectos.",
     };
   }
+
   const { error } = await supabaseAdmin
     .from("celdas")
     .update({
       efecto_id: efecto.id,
-      letra_asignada: letra.trim().substring(0, 1).toUpperCase(),
+      letra_asignada: texto.trim().toUpperCase(), // Guardamos el texto completo
       updated_at: new Date().toISOString(),
     })
     .eq("id", celdaId);
+
   if (error) return { error: error.message };
+
   revalidatePath("/dashboard");
   return { success: true };
 }

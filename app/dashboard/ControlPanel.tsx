@@ -39,12 +39,6 @@ export default function ControlPanel({
 
       <div className="control-group">
         <h3>Efectos Globales</h3>
-
-        {/* --- CORRECCIÓN ---
-            El botón de la ola se ha eliminado. 
-            Ahora se renderizará automáticamente en la lista de abajo si existe en la BD.
-        */}
-
         {efectos.map((e) => (
           <button
             key={e.id}
@@ -92,17 +86,16 @@ export default function ControlPanel({
         </button>
       </div>
       <div className="control-group">
-        <h3>Efecto de Letra (1 celda ocupada)</h3>
+        {/* --- ¡MODIFICADO! --- */}
+        <h3>Efecto de Texto (1 celda ocupada)</h3>
         <input
           type="text"
-          placeholder="Escribe una letra"
-          maxLength={1}
+          placeholder="Escribe una palabra"
           value={letra}
           onChange={(e) => onLetraChange(e.target.value)}
         />
         <button onClick={onApplyLetra} disabled={isLetraButtonDisabled}>
-          {" "}
-          Mostrar Letra{" "}
+          Mostrar Texto
         </button>
       </div>
     </div>
