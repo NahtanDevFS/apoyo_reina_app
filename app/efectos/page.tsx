@@ -6,15 +6,29 @@ import { supabase } from "@/lib/supabase";
 import "./efectos.css";
 
 // Tipos
-type Celda = { id: number; fila: number; columna: number; estado_celda: number, efecto_id: number | null, letra_asignada: string | null };
+type Celda = {
+  id: number;
+  fila: number;
+  columna: number;
+  estado_celda: number;
+  efecto_id: number | null;
+  letra_asignada: string | null;
+};
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
+type ParpadeoConfig = { colors: string[]; speed: number };
+type FlashConfig = { speed: number }; // ¡NUEVO!
 
 export default function EfectoPage() {
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
   const [selectedMatriz, setSelectedMatriz] = useState<Matriz | null>(null);
-  const [celdas, setCeldas] = useState<Pick<Celda, 'id' | 'fila' | 'columna' | 'estado_celda'>[]>([]);
+  const [celdas, setCeldas] = useState<
+    Pick<Celda, "id" | "fila" | "columna" | "estado_celda">[]
+  >([]);
   const [celdaId, setCeldaId] = useState<number | null>(null);
-  const [miCeldaInfo, setMiCeldaInfo] = useState<{ fila: number; columna: number } | null>(null);
+  const [miCeldaInfo, setMiCeldaInfo] = useState<{
+    fila: number;
+    columna: number;
+  } | null>(null);
   const [efecto, setEfecto] = useState<string>("inicial");
   const [letraMostrada, setLetraMostrada] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("Cargando eventos...");
@@ -29,21 +43,75 @@ export default function EfectoPage() {
   const prevEfectoRef = useRef<string>("inicial");
   const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTimestampRef = useRef<string | null>(null);
+  const styleSheetRef = useRef<CSSStyleSheet | null>(null);
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
 
-  const scheduleEffect = (efecto: string, texto: string | null, timestamp: string) => {
+  const updateParpadeoAnimation = (config: ParpadeoConfig) => {
+    if (!styleSheetRef.current) {
+      const styleEl = document.createElement("style");
+      document.head.appendChild(styleEl);
+      styleSheetRef.current = styleEl.sheet;
+    }
+
+    if (styleSheetRef.current && styleSheetRef.current.cssRules.length > 0) {
+      for (let i = styleSheetRef.current.cssRules.length - 1; i >= 0; i--) {
+        styleSheetRef.current.deleteRule(i);
+      }
+    }
+
+    if (config.colors && config.colors.length >= 2) {
+      const keyframes = `
+        @keyframes parpadeo-dinamico {
+          ${config.colors
+            .map((color, index) => {
+              const step = 100 / config.colors.length;
+              return `${index * step}%, ${
+                (index + 1) * step - 0.01
+              }% { background-color: ${color}; }`;
+            })
+            .join("\n")}
+          100% { background-color: ${config.colors[0]}; }
+        }
+      `;
+      const animationClass = `
+        .efecto-parpadeo-personalizado {
+          animation: parpadeo-dinamico ${
+            config.speed * config.colors.length
+          }s infinite;
+        }
+      `;
+      styleSheetRef.current?.insertRule(keyframes, 0);
+      styleSheetRef.current?.insertRule(animationClass, 1);
+    }
+  };
+
+  const scheduleEffect = (
+    efecto: string,
+    texto: string | null,
+    timestamp: string,
+    parpadeoConfig: ParpadeoConfig | null,
+    flashConfig: FlashConfig | null
+  ) => {
     if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
 
     const serverTime = new Date(timestamp).getTime();
     const clientTime = new Date().getTime();
     const executionTime = serverTime + SYNCHRONIZATION_DELAY_MS;
-    
+
     const delay = Math.max(0, executionTime - clientTime);
 
     efectoTimeoutRef.current = setTimeout(() => {
+      if (efecto === "parpadeo-personalizado" && parpadeoConfig) {
+        updateParpadeoAnimation(parpadeoConfig);
+      }
+      // --- ¡NUEVO! Lógica para flash personalizado ---
+      if (efecto === "flash-personalizado" && flashConfig) {
+        startFlashing(efecto, flashConfig.speed);
+      }
+
       setEfecto(efecto);
-      if (efecto === 'mostrar-letra' && texto) {
+      if (efecto === "mostrar-letra" && texto) {
         startTextoLoop(texto);
       } else {
         stopTextoLoop();
@@ -52,26 +120,55 @@ export default function EfectoPage() {
   };
 
   const controlFlash = async (state: boolean) => {
-    if (videoTrackRef.current && (videoTrackRef.current.getCapabilities() as any).torch) {
+    if (
+      videoTrackRef.current &&
+      (videoTrackRef.current.getCapabilities() as any).torch
+    ) {
       try {
-        await videoTrackRef.current.applyConstraints({ advanced: [{ torch: state } as any] });
-      } catch (err) { console.error("Error al controlar el flash:", err); }
+        await videoTrackRef.current.applyConstraints({
+          advanced: [{ torch: state } as any],
+        });
+      } catch (err) {
+        console.error("Error al controlar el flash:", err);
+      }
     }
   };
 
   const stopFlashing = () => {
-    if (flashIntervalRef.current) { clearTimeout(flashIntervalRef.current); flashIntervalRef.current = null; }
+    if (flashIntervalRef.current) {
+      clearTimeout(flashIntervalRef.current);
+      flashIntervalRef.current = null;
+    }
     controlFlash(false);
   };
 
-  const startFlashing = (flashType: string) => {
+  // --- ¡MODIFICADO! Acepta velocidad personalizada ---
+  const startFlashing = (flashType: string, customSpeed?: number) => {
     stopFlashing();
     let pattern: number[] = [];
     switch (flashType) {
-      case "flash-fisico-lento": pattern = [1000, 1000]; break;
-      case "flash-fisico-rapido": pattern = [200, 200]; break;
-      case "flash-fisico-sos": pattern = [150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100, 150, 100, 150, 800]; break;
-      default: return;
+      case "flash-fisico-lento":
+        pattern = [1000, 1000];
+        break;
+      case "flash-fisico-rapido":
+        pattern = [200, 200];
+        break;
+      case "flash-fisico-sos":
+        pattern = [
+          150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100,
+          150, 100, 150, 800,
+        ];
+        break;
+      case "flash-personalizado":
+        if (customSpeed) {
+          const speedMs = customSpeed * 1000;
+          pattern = [speedMs, speedMs];
+        } else {
+          return;
+        }
+        break;
+      default:
+        return;
     }
     let i = 0;
     const executePattern = () => {
@@ -85,19 +182,37 @@ export default function EfectoPage() {
 
   const initCameraForFlash = async (): Promise<boolean> => {
     if (videoTrackRef.current) return true;
-    if (!("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)) { console.error("Flash Control: MediaDevices API not supported."); return false; }
+    if (
+      !("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)
+    ) {
+      console.error("Flash Control: MediaDevices API not supported.");
+      return false;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
       const track = stream.getVideoTracks()[0];
-      if (!(track.getCapabilities() as any).torch) { console.error("Flash Control: Torch capability not supported."); track.stop(); return false; }
+      if (!(track.getCapabilities() as any).torch) {
+        console.error("Flash Control: Torch capability not supported.");
+        track.stop();
+        return false;
+      }
       videoTrackRef.current = track;
       return true;
-    } catch (err) { console.error("Flash Control: Could not get camera access.", err); return false; }
+    } catch (err) {
+      console.error("Flash Control: Could not get camera access.", err);
+      return false;
+    }
   };
-  
+
   const releaseCamera = () => {
     stopFlashing();
-    if (videoTrackRef.current) { videoTrackRef.current.stop(); videoTrackRef.current = null; console.log("Cámara liberada."); }
+    if (videoTrackRef.current) {
+      videoTrackRef.current.stop();
+      videoTrackRef.current = null;
+      console.log("Cámara liberada.");
+    }
   };
 
   const stopTextoLoop = () => {
@@ -115,11 +230,9 @@ export default function EfectoPage() {
       setLetraMostrada(texto);
       return;
     }
-
     let index = 0;
     setLetraMostrada(texto[index]);
     index = (index + 1) % texto.length;
-    
     textoIntervalRef.current = setInterval(() => {
       setLetraMostrada(texto[index]);
       index = (index + 1) % texto.length;
@@ -128,7 +241,11 @@ export default function EfectoPage() {
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
-    const { data, error } = await supabase.from("efectos").select("nombre_css").eq("id", efectoId).single();
+    const { data, error } = await supabase
+      .from("efectos")
+      .select("nombre_css")
+      .eq("id", efectoId)
+      .single();
     return error || !data ? "inicial" : data.nombre_css;
   };
 
@@ -151,11 +268,14 @@ export default function EfectoPage() {
       cargarTodasLasMatrices();
     });
   };
-  
+
   const cargarTodasLasMatrices = async () => {
     setMensaje("Cargando eventos disponibles...");
     setSelectedMatriz(null);
-    const { data, error } = await supabase.from("matrices").select("*").order("nombre");
+    const { data, error } = await supabase
+      .from("matrices")
+      .select("*")
+      .order("nombre");
     if (error) return setMensaje("No se pudieron cargar los eventos.");
     setAllMatrices(data);
     setMensaje("Selecciona tu evento o sección");
@@ -164,18 +284,28 @@ export default function EfectoPage() {
   const cargarCeldasDeMatriz = async (matriz: Matriz) => {
     setMensaje(`Cargando posiciones para ${matriz.nombre}...`);
     setSelectedMatriz(matriz);
-    const { data, error } = await supabase.from("celdas").select("id, fila, columna, estado_celda").eq("matriz_id", matriz.id).order("fila, columna");
+    const { data, error } = await supabase
+      .from("celdas")
+      .select("id, fila, columna, estado_celda")
+      .eq("matriz_id", matriz.id)
+      .order("fila, columna");
     if (error) return setMensaje("No se pudieron cargar las posiciones.");
     setCeldas(data);
     setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
-  const seleccionarCelda = async (celda: Pick<Celda, 'id' | 'fila' | 'columna' | 'estado_celda'>) => {
-    if (celda.estado_celda === 1) return alert("Esta posición ya está ocupada.");
+  const seleccionarCelda = async (
+    celda: Pick<Celda, "id" | "fila" | "columna" | "estado_celda">
+  ) => {
+    if (celda.estado_celda === 1)
+      return alert("Esta posición ya está ocupada.");
     if (!selectedMatriz) return;
-    
     startTransition(async () => {
-      const { data, error } = await supabase.rpc("ocupar_celda_especifica", { matriz_id_in: selectedMatriz.id, fila_in: celda.fila, columna_in: celda.columna });
+      const { data, error } = await supabase.rpc("ocupar_celda_especifica", {
+        matriz_id_in: selectedMatriz.id,
+        fila_in: celda.fila,
+        columna_in: celda.columna,
+      });
       if (error || !data || data.length === 0) {
         cargarCeldasDeMatriz(selectedMatriz);
         return alert("Alguien más tomó este lugar. ¡Intenta de nuevo!");
@@ -185,7 +315,10 @@ export default function EfectoPage() {
         setCeldaId(nuevaCeldaId);
         setMiCeldaInfo({ fila: celda.fila, columna: celda.columna });
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
-        sessionStorage.setItem("miCeldaInfo", JSON.stringify({ fila: celda.fila, columna: celda.columna }));
+        sessionStorage.setItem(
+          "miCeldaInfo",
+          JSON.stringify({ fila: celda.fila, columna: celda.columna })
+        );
       }
     });
   };
@@ -195,7 +328,7 @@ export default function EfectoPage() {
     setIsUiVisible(true);
     uiTimeoutRef.current = setTimeout(() => setIsUiVisible(false), 2000);
   };
-  
+
   useEffect(() => {
     const idGuardado = sessionStorage.getItem("miCeldaId");
     const infoGuardada = sessionStorage.getItem("miCeldaInfo");
@@ -206,136 +339,167 @@ export default function EfectoPage() {
     } else {
       cargarTodasLasMatrices();
     }
-    return () => { if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current); };
+    return () => {
+      if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
+    };
   }, []);
 
   useEffect(() => {
     const requestWakeLock = async () => {
       if ("wakeLock" in navigator && celdaId) {
-        try { wakeLockRef.current = await navigator.wakeLock.request("screen"); } 
-        catch (err: any) { console.error(`Wake Lock fallido: ${err.name}, ${err.message}`); }
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        } catch (err: any) {
+          console.error(`Wake Lock fallido: ${err.name}, ${err.message}`);
+        }
       }
     };
-    const releaseWakeLock = async () => { if (wakeLockRef.current) { await wakeLockRef.current.release(); wakeLockRef.current = null; }};
+    const releaseWakeLock = async () => {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    };
     requestWakeLock();
-    const handleVisibilityChange = () => { if (document.visibilityState === "visible") requestWakeLock(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") requestWakeLock();
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => { releaseWakeLock(); document.removeEventListener("visibilitychange", handleVisibilityChange); };
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [celdaId]);
 
   useEffect(() => {
     if (!celdaId) return;
-
     const handleEfectoChange = async (efectoActual: string) => {
       if (efectoActual.startsWith("flash-fisico-")) {
         const cameraReady = await initCameraForFlash();
         if (cameraReady) startFlashing(efectoActual);
-      } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
+      } else if (
+        prevEfectoRef.current.startsWith("flash-fisico-") ||
+        prevEfectoRef.current === "flash-personalizado"
+      ) {
         stopFlashing();
       }
       prevEfectoRef.current = efectoActual;
     };
-
     const verificarEstado = async () => {
-      if(!celdaId) return;
-      
-      // 1. Verificamos el estado de nuestra celda primero.
+      if (!celdaId) return;
       const { data: celdaData, error: celdaError } = await supabase
         .from("celdas")
         .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
-
-      // Si hay un error o no se encuentran datos, esperamos a la siguiente verificación.
-      // Esto evita que un problema temporal de red nos saque de la sesión.
       if (celdaError || !celdaData) {
-        console.error("No se pudo obtener el estado de la celda, reintentando...");
+        console.error(
+          "No se pudo obtener el estado de la celda, reintentando..."
+        );
         return;
       }
-      
-      // ÚNICA RAZÓN PARA SALIR: Si el estado de la celda es explícitamente 0 (libre).
       if (celdaData.estado_celda === 0) {
         return liberarMiCelda();
       }
-      
-      // 2. Si nuestra celda está bien, verificamos el estado global.
       const { data: globalData } = await supabase
         .from("estado_concierto")
-        .select("efecto_actual, efecto_timestamp")
+        .select(
+          "efecto_actual, efecto_timestamp, efecto_parpadeo_config, efecto_flash_config"
+        )
         .eq("id", 1)
         .single();
-      
       const timestamp = globalData?.efecto_timestamp;
-      
-      // 3. Si hay una nueva marca de tiempo, procesamos los cambios.
       if (timestamp && timestamp !== lastTimestampRef.current) {
         lastTimestampRef.current = timestamp;
-
         const efectoGlobalNuevo = globalData?.efecto_actual || "inicial";
         const efectoCeldaNuevo = await getNombreEfecto(celdaData.efecto_id);
         const textoCelda = celdaData.letra_asignada;
-
+        const parpadeoConfig =
+          globalData?.efecto_parpadeo_config as ParpadeoConfig | null;
+        const flashConfig =
+          globalData?.efecto_flash_config as FlashConfig | null; // ¡NUEVO!
         let efectoFinal = "inicial";
-        // Si hay un efecto global y NO es una ola, este tiene prioridad.
-        if (efectoGlobalNuevo !== 'inicial' && !efectoGlobalNuevo.startsWith('efecto-ola')) {
-            efectoFinal = efectoGlobalNuevo;
+        if (
+          efectoGlobalNuevo !== "inicial" &&
+          !efectoGlobalNuevo.startsWith("efecto-ola")
+        ) {
+          efectoFinal = efectoGlobalNuevo;
         } else {
-            // Si el efecto global es una ola o no hay efecto global, mostramos el de nuestra celda.
-            // Esto permite que el 'ola-activa' de nuestra celda se muestre correctamente.
-            efectoFinal = efectoCeldaNuevo;
+          efectoFinal = efectoCeldaNuevo;
         }
-
-        scheduleEffect(efectoFinal, textoCelda, timestamp);
+        scheduleEffect(
+          efectoFinal,
+          textoCelda,
+          timestamp,
+          parpadeoConfig,
+          flashConfig
+        ); // ¡MODIFICADO!
         handleEfectoChange(efectoFinal);
       }
     };
-
     verificarEstado();
     const intervalId = setInterval(verificarEstado, 350);
-    
     return () => {
       clearInterval(intervalId);
       releaseCamera();
       stopTextoLoop();
-      if(efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
+      if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
   }, [celdaId]);
 
   const claseFondo = `efecto-${efecto}`;
-  
+
   if (celdaId) {
     return (
-      <div className={`container-confirmacion ${claseFondo}`} onClick={handleScreenTap}>
-        
-        {(efecto === "mostrar-letra" && letraMostrada) ? (
-            <div className="container-letra">
-               <span className="letra-display">{letraMostrada}</span>
-            </div>
-          ) : (
-            <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
-              <h1>¡Listo!</h1>
-              <p>Tu posición está confirmada.</p>
-              <div className="luz-indicadora"></div>
-            </div>
-          )
-        }
-        <button onClick={liberarMiCelda} disabled={isPending} className={`boton-salir ${isUiVisible ? "visible" : ""}`}>
+      <div
+        className={`container-confirmacion ${claseFondo}`}
+        onClick={handleScreenTap}
+      >
+        {efecto === "mostrar-letra" && letraMostrada ? (
+          <div className="container-letra">
+            <span className="letra-display">{letraMostrada}</span>
+          </div>
+        ) : (
+          <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
+            <h1>¡Listo!</h1>
+            <p>Tu posición está confirmada.</p>
+            <div className="luz-indicadora"></div>
+          </div>
+        )}
+        <button
+          onClick={liberarMiCelda}
+          disabled={isPending}
+          className={`boton-salir ${isUiVisible ? "visible" : ""}`}
+        >
           Salir
         </button>
       </div>
     );
   }
-  
+
   if (selectedMatriz) {
     return (
       <div className="container-seleccion">
-        <button onClick={cargarTodasLasMatrices} className="boton-volver"> ← Volver </button>
+        <button onClick={cargarTodasLasMatrices} className="boton-volver">
+          {" "}
+          ← Volver{" "}
+        </button>
         <h1>{selectedMatriz.nombre}</h1>
         <p>{mensaje}</p>
-        <div className="matriz-grid-seleccion" style={{ gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)` }}>
+        <div
+          className="matriz-grid-seleccion"
+          style={{
+            gridTemplateColumns: `repeat(${selectedMatriz.columnas}, 1fr)`,
+          }}
+        >
           {celdas.map((celda) => (
-            <button key={celda.id} className={`celda-seleccion ${celda.estado_celda === 1 ? "ocupada" : "libre"}`}
-              onClick={() => seleccionarCelda(celda)} disabled={isPending || celda.estado_celda === 1}
+            <button
+              key={celda.id}
+              className={`celda-seleccion ${
+                celda.estado_celda === 1 ? "ocupada" : "libre"
+              }`}
+              onClick={() => seleccionarCelda(celda)}
+              disabled={isPending || celda.estado_celda === 1}
               title={`Fila ${celda.fila}, Columna ${celda.columna}`}
             />
           ))}
@@ -350,7 +514,11 @@ export default function EfectoPage() {
       <p>{mensaje}</p>
       <div className="lista-matrices">
         {allMatrices.map((matriz) => (
-          <button key={matriz.id} onClick={() => cargarCeldasDeMatriz(matriz)} className="boton-matriz">
+          <button
+            key={matriz.id}
+            onClick={() => cargarCeldasDeMatriz(matriz)}
+            className="boton-matriz"
+          >
             {matriz.nombre}
           </button>
         ))}

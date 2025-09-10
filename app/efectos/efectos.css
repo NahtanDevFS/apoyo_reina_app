@@ -246,3 +246,7 @@
     background-position: 0% 50%;
   }
 }
+
+.efecto-parpadeo-personalizado {
+  background-color: #121212; /* Color inicial por defecto */
+}
