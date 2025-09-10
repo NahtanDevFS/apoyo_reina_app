@@ -106,9 +106,9 @@ export default function ControlPanel({
         <label>Velocidad: {flashSpeed}s</label>
         <input
           type="range"
-          min="0.1"
+          min="0.01"
           max="2"
-          step="0.1"
+          step="0.05"
           value={flashSpeed}
           onChange={(e) => setFlashSpeed(Number(e.target.value))}
         />
@@ -143,9 +143,9 @@ export default function ControlPanel({
         <label>Velocidad: {parpadeoSpeed}s</label>
         <input
           type="range"
-          min="0.1"
+          min="0.01"
           max="1"
-          step="0.1"
+          step="0.05"
           value={parpadeoSpeed}
           onChange={(e) => setParpadeoSpeed(Number(e.target.value))}
         />
