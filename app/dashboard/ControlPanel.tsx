@@ -32,7 +32,7 @@ type Props = {
   audioUrl: string;
   setAudioUrl: (url: string) => void;
   onApplyAudio: () => void;
-  onApplyCombinedEffect: () => void; // ¡NUEVO!
+  onApplyCombinedEffect: () => void;
 };
 
 export default function ControlPanel({
@@ -63,7 +63,7 @@ export default function ControlPanel({
   audioUrl,
   setAudioUrl,
   onApplyAudio,
-  onApplyCombinedEffect, // ¡NUEVO!
+  onApplyCombinedEffect,
 }: Props) {
   const [newColor, setNewColor] = useState("#FFFFFF");
 
@@ -85,7 +85,7 @@ export default function ControlPanel({
       e.nombre_css !== "parpadeo-personalizado" &&
       e.nombre_css !== "flash-fisico-regulable" &&
       e.nombre_css !== "reproducir-audio" &&
-      e.nombre_css !== "efecto-combinado" // ¡NUEVO!
+      e.nombre_css !== "combinado"
   );
 
   return (
@@ -93,12 +93,11 @@ export default function ControlPanel({
       <h2>Panel de Control</h2>
 
       <div className="control-group">
-        {/* --- ¡NUEVO BOTÓN! --- */}
         <h3>Efecto Combinado</h3>
         <button
           onClick={onApplyCombinedEffect}
           disabled={isPending || parpadeoColors.length < 2}
-          className="btn-danger" // Puedes cambiar el estilo si quieres
+          className="btn-danger"
         >
           Activar Efecto Combinado
         </button>

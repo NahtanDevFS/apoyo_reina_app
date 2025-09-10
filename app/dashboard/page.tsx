@@ -11,7 +11,7 @@ import {
   applyTextoToMatriz,
   applyParpadeoPersonalizadoAction,
   applyFlashFisicoAction,
-  applyCombinedEffect, // ¡NUEVO!
+  applyCombinedEffect,
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       applyTextoToMatrizAction={applyTextoToMatriz}
       applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction}
       applyFlashFisicoAction={applyFlashFisicoAction}
-      applyCombinedEffectAction={applyCombinedEffect} // ¡NUEVO!
+      applyCombinedEffectAction={applyCombinedEffect}
     />
   );
 }

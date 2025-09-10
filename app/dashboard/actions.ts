@@ -30,7 +30,7 @@ export async function syncPredefinedEfectos() {
     { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" },
     { nombre: "Flash Físico Regulable", nombre_css: "flash-fisico-regulable" },
     { nombre: "Reproducir Audio", nombre_css: "reproducir-audio" },
-    { nombre: "Efecto Combinado", nombre_css: "efecto-combinado" }, // ¡NUEVO!
+    { nombre: "Efecto Combinado", nombre_css: "combinado" }, // ¡CORREGIDO!
   ];
   await supabaseAdmin
     .from("efectos")
@@ -72,7 +72,6 @@ export async function applyParpadeoPersonalizadoAction(
   return { success: true };
 }
 
-// ¡NUEVA! Acción para el flash físico regulable
 export async function applyFlashFisicoAction(speed: number) {
   const config = { speed };
   const { error } = await supabaseAdmin
@@ -203,7 +202,6 @@ export async function createMatriz(formData: FormData) {
   return { success: true };
 }
 
-// --- ¡NUEVA FUNCIÓN! ---
 export async function applyCombinedEffect(
   audioUrl: string,
   flashSpeed: number,
@@ -219,7 +217,7 @@ export async function applyCombinedEffect(
       audio_url: audioUrl,
       efecto_flash_config: flashConfig,
       efecto_parpadeo_config: parpadeoConfig,
-      efecto_actual: "efecto-combinado",
+      efecto_actual: "combinado", // ¡CORREGIDO!
       efecto_timestamp: new Date().toISOString(),
     })
     .eq("id", 1);

@@ -48,7 +48,6 @@ type DashboardClientProps = {
   ) => Promise<any>;
   applyFlashFisicoAction: (speed: number) => Promise<any>;
   applyCombinedEffectAction: (
-    // ¡NUEVO!
     audioUrl: string,
     flashSpeed: number,
     parpadeoColors: string[],
@@ -72,7 +71,7 @@ export default function DashboardClient({
   applyTextoToMatrizAction,
   applyParpadeoPersonalizadoAction,
   applyFlashFisicoAction,
-  applyCombinedEffectAction, // ¡NUEVO!
+  applyCombinedEffectAction,
 }: DashboardClientProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -259,7 +258,7 @@ export default function DashboardClient({
       await applyGlobalEfectoAction("reproducir-audio", audioUrl);
     });
   };
-  // --- ¡NUEVO HANDLER! ---
+
   const handleApplyCombinedEffect = () => {
     if (parpadeoColors.length < 2) {
       alert("Necesitas al menos 2 colores para el parpadeo combinado.");
@@ -468,7 +467,7 @@ export default function DashboardClient({
           audioUrl={audioUrl}
           setAudioUrl={setAudioUrl}
           onApplyAudio={handleApplyAudio}
-          onApplyCombinedEffect={handleApplyCombinedEffect} // ¡NUEVO!
+          onApplyCombinedEffect={handleApplyCombinedEffect}
         />
       </div>
     </div>
