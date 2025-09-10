@@ -20,13 +20,13 @@ type Celda = {
   letra_asignada: string | null;
 };
 type ParpadeoConfig = { colors: string[]; speed: number };
-type FlashConfig = { speed: number }; // ¡NUEVO!
+type FlashConfig = { speed: number };
 
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
   initialParpadeoConfig: ParpadeoConfig;
-  initialFlashConfig: FlashConfig; // ¡NUEVO!
+  initialFlashConfig: FlashConfig;
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
   createMatrizAction: (formData: FormData) => Promise<any>;
   syncEfectosAction: () => Promise<any>;
@@ -46,7 +46,14 @@ type DashboardClientProps = {
     colors: string[],
     speed: number
   ) => Promise<any>;
-  applyFlashFisicoAction: (speed: number) => Promise<any>; // ¡NUEVO!
+  applyFlashFisicoAction: (speed: number) => Promise<any>;
+  applyCombinedEffectAction: (
+    // ¡NUEVO!
+    audioUrl: string,
+    flashSpeed: number,
+    parpadeoColors: string[],
+    parpadeoSpeed: number
+  ) => Promise<any>;
 };
 
 export default function DashboardClient({
@@ -65,6 +72,7 @@ export default function DashboardClient({
   applyTextoToMatrizAction,
   applyParpadeoPersonalizadoAction,
   applyFlashFisicoAction,
+  applyCombinedEffectAction, // ¡NUEVO!
 }: DashboardClientProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -94,9 +102,7 @@ export default function DashboardClient({
   );
   const [flashSpeed, setFlashSpeed] = useState<number>(
     initialFlashConfig.speed
-  ); // ¡NUEVO!
-  // --- ¡CAMBIO AQUÍ! ---
-  // Cambia "/trompeta.mp3" por el nombre de tu archivo de audio.
+  );
   const [audioUrl, setAudioUrl] = useState("/fire_alarm.mp3");
 
   useEffect(() => {
@@ -242,7 +248,6 @@ export default function DashboardClient({
     });
   };
 
-  // ¡NUEVO! Handler para aplicar flash físico
   const handleApplyFlash = () => {
     startTransition(async () => {
       await applyFlashFisicoAction(flashSpeed);
@@ -252,6 +257,21 @@ export default function DashboardClient({
   const handleApplyAudio = () => {
     startTransition(async () => {
       await applyGlobalEfectoAction("reproducir-audio", audioUrl);
+    });
+  };
+  // --- ¡NUEVO HANDLER! ---
+  const handleApplyCombinedEffect = () => {
+    if (parpadeoColors.length < 2) {
+      alert("Necesitas al menos 2 colores para el parpadeo combinado.");
+      return;
+    }
+    startTransition(async () => {
+      await applyCombinedEffectAction(
+        audioUrl,
+        flashSpeed,
+        parpadeoColors,
+        parpadeoSpeed
+      );
     });
   };
 
@@ -442,12 +462,13 @@ export default function DashboardClient({
           parpadeoSpeed={parpadeoSpeed}
           setParpadeoSpeed={setParpadeoSpeed}
           onApplyParpadeo={handleApplyParpadeo}
-          flashSpeed={flashSpeed} // ¡NUEVO!
-          setFlashSpeed={setFlashSpeed} // ¡NUEVO!
-          onApplyFlash={handleApplyFlash} // ¡NUEVO!
+          flashSpeed={flashSpeed}
+          setFlashSpeed={setFlashSpeed}
+          onApplyFlash={handleApplyFlash}
           audioUrl={audioUrl}
           setAudioUrl={setAudioUrl}
           onApplyAudio={handleApplyAudio}
+          onApplyCombinedEffect={handleApplyCombinedEffect} // ¡NUEVO!
         />
       </div>
     </div>

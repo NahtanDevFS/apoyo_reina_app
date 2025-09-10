@@ -26,12 +26,13 @@ type Props = {
   parpadeoSpeed: number;
   setParpadeoSpeed: (speed: number) => void;
   onApplyParpadeo: () => void;
-  flashSpeed: number; // ¡NUEVO!
-  setFlashSpeed: (speed: number) => void; // ¡NUEVO!
-  onApplyFlash: () => void; // ¡NUEVO!
+  flashSpeed: number;
+  setFlashSpeed: (speed: number) => void;
+  onApplyFlash: () => void;
   audioUrl: string;
   setAudioUrl: (url: string) => void;
   onApplyAudio: () => void;
+  onApplyCombinedEffect: () => void; // ¡NUEVO!
 };
 
 export default function ControlPanel({
@@ -56,12 +57,13 @@ export default function ControlPanel({
   parpadeoSpeed,
   setParpadeoSpeed,
   onApplyParpadeo,
-  flashSpeed, // ¡NUEVO!
-  setFlashSpeed, // ¡NUEVO!
-  onApplyFlash, // ¡NUEVO!
+  flashSpeed,
+  setFlashSpeed,
+  onApplyFlash,
   audioUrl,
   setAudioUrl,
   onApplyAudio,
+  onApplyCombinedEffect, // ¡NUEVO!
 }: Props) {
   const [newColor, setNewColor] = useState("#FFFFFF");
 
@@ -82,12 +84,25 @@ export default function ControlPanel({
       e.nombre_css !== "ola-activa" &&
       e.nombre_css !== "parpadeo-personalizado" &&
       e.nombre_css !== "flash-fisico-regulable" &&
-      e.nombre_css !== "reproducir-audio"
+      e.nombre_css !== "reproducir-audio" &&
+      e.nombre_css !== "efecto-combinado" // ¡NUEVO!
   );
 
   return (
     <div className="card control-panel">
       <h2>Panel de Control</h2>
+
+      <div className="control-group">
+        {/* --- ¡NUEVO BOTÓN! --- */}
+        <h3>Efecto Combinado</h3>
+        <button
+          onClick={onApplyCombinedEffect}
+          disabled={isPending || parpadeoColors.length < 2}
+          className="btn-danger" // Puedes cambiar el estilo si quieres
+        >
+          Activar Efecto Combinado
+        </button>
+      </div>
 
       <div className="control-group">
         <h3>Efectos Globales</h3>

@@ -29,7 +29,8 @@ export async function syncPredefinedEfectos() {
     { nombre: "Efecto Ola", nombre_css: "efecto-ola" },
     { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" },
     { nombre: "Flash Físico Regulable", nombre_css: "flash-fisico-regulable" },
-    { nombre: "Reproducir Audio", nombre_css: "reproducir-audio" }, // ¡NUEVO!
+    { nombre: "Reproducir Audio", nombre_css: "reproducir-audio" },
+    { nombre: "Efecto Combinado", nombre_css: "efecto-combinado" }, // ¡NUEVO!
   ];
   await supabaseAdmin
     .from("efectos")
@@ -199,5 +200,30 @@ export async function createMatriz(formData: FormData) {
   }
   await supabaseAdmin.from("celdas").insert(celdasParaInsertar);
   revalidatePath("/dashboard");
+  return { success: true };
+}
+
+// --- ¡NUEVA FUNCIÓN! ---
+export async function applyCombinedEffect(
+  audioUrl: string,
+  flashSpeed: number,
+  parpadeoColors: string[],
+  parpadeoSpeed: number
+) {
+  const flashConfig = { speed: flashSpeed };
+  const parpadeoConfig = { colors: parpadeoColors, speed: parpadeoSpeed };
+
+  const { error } = await supabaseAdmin
+    .from("estado_concierto")
+    .update({
+      audio_url: audioUrl,
+      efecto_flash_config: flashConfig,
+      efecto_parpadeo_config: parpadeoConfig,
+      efecto_actual: "efecto-combinado",
+      efecto_timestamp: new Date().toISOString(),
+    })
+    .eq("id", 1);
+
+  if (error) return { success: false, error: error.message };
   return { success: true };
 }

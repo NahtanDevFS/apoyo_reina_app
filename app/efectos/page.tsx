@@ -100,7 +100,7 @@ export default function EfectoPage() {
         }
       `;
       const animationClass = `
-        .efecto-parpadeo-personalizado {
+        .efecto-parpadeo-personalizado, .efecto-combinado {
           animation: parpadeo-dinamico ${
             config.speed * config.colors.length
           }s infinite;
@@ -128,11 +128,19 @@ export default function EfectoPage() {
     const delay = Math.max(0, executionTime - clientTime);
 
     efectoTimeoutRef.current = setTimeout(() => {
-      if (efecto === "parpadeo-personalizado" && parpadeoConfig) {
+      if (
+        (efecto === "parpadeo-personalizado" ||
+          efecto === "efecto-combinado") &&
+        parpadeoConfig
+      ) {
         updateParpadeoAnimation(parpadeoConfig);
       }
 
-      if (efecto === "reproducir-audio" && audioUrl && audioRef.current) {
+      if (
+        (efecto === "reproducir-audio" || efecto === "efecto-combinado") &&
+        audioUrl &&
+        audioRef.current
+      ) {
         // Aseguramos que la URL sea absoluta para evitar problemas
         const absoluteUrl = new URL(audioUrl, window.location.origin).href;
         if (audioRef.current.src !== absoluteUrl) {
@@ -145,7 +153,11 @@ export default function EfectoPage() {
         audioRef.current.pause();
       }
 
-      if (efecto === "flash-fisico-regulable" && flashConfig) {
+      if (
+        (efecto === "flash-fisico-regulable" ||
+          efecto === "efecto-combinado") &&
+        flashConfig
+      ) {
         initCameraForFlash().then((ready) => {
           if (ready) startFlashing(flashConfig.speed);
         });
@@ -389,8 +401,15 @@ export default function EfectoPage() {
     if (!celdaId) return;
 
     const handleEfectoChange = async (efectoActual: string) => {
-      if (efectoActual === "flash-fisico-regulable") {
-      } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
+      if (
+        efectoActual === "flash-fisico-regulable" ||
+        efectoActual === "efecto-combinado"
+      ) {
+        // No hacer nada, ya se maneja en scheduleEffect
+      } else if (
+        prevEfectoRef.current.startsWith("flash-fisico-") ||
+        prevEfectoRef.current === "efecto-combinado"
+      ) {
         stopFlashing();
       }
       prevEfectoRef.current = efectoActual;
