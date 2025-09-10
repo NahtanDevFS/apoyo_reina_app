@@ -21,12 +21,14 @@ type Props = {
   onApplyGlobalEfecto: (efectoCss: string) => void;
   isLetraButtonDisabled: boolean;
   isPending: boolean;
-  // --- ¡NUEVO! Props para el parpadeo ---
   parpadeoColors: string[];
   setParpadeoColors: (colors: string[]) => void;
   parpadeoSpeed: number;
   setParpadeoSpeed: (speed: number) => void;
   onApplyParpadeo: () => void;
+  flashSpeed: number; // ¡NUEVO!
+  setFlashSpeed: (speed: number) => void; // ¡NUEVO!
+  onApplyFlash: () => void; // ¡NUEVO!
 };
 
 export default function ControlPanel({
@@ -46,12 +48,14 @@ export default function ControlPanel({
   onApplyGlobalEfecto,
   isLetraButtonDisabled,
   isPending,
-  // --- ¡NUEVO! Destructuración de props ---
   parpadeoColors,
   setParpadeoColors,
   parpadeoSpeed,
   setParpadeoSpeed,
   onApplyParpadeo,
+  flashSpeed, // ¡NUEVO!
+  setFlashSpeed, // ¡NUEVO!
+  onApplyFlash, // ¡NUEVO!
 }: Props) {
   const [newColor, setNewColor] = useState("#FFFFFF");
 
@@ -69,7 +73,9 @@ export default function ControlPanel({
 
   const efectosVisibles = efectos.filter(
     (e) =>
-      e.nombre_css !== "ola-activa" && e.nombre_css !== "parpadeo-personalizado"
+      e.nombre_css !== "ola-activa" &&
+      e.nombre_css !== "parpadeo-personalizado" &&
+      e.nombre_css !== "flash-fisico-regulable"
   );
 
   return (
@@ -95,7 +101,22 @@ export default function ControlPanel({
         </button>
       </div>
 
-      {/* --- ¡NUEVO! Sección de Parpadeo Personalizado --- */}
+      <div className="control-group">
+        <h3>Flash Físico (Móvil)</h3>
+        <label>Velocidad: {flashSpeed}s</label>
+        <input
+          type="range"
+          min="0.1"
+          max="2"
+          step="0.1"
+          value={flashSpeed}
+          onChange={(e) => setFlashSpeed(Number(e.target.value))}
+        />
+        <button onClick={onApplyFlash} disabled={isPending}>
+          Activar Flash Físico
+        </button>
+      </div>
+
       <div className="control-group">
         <h3>Parpadeo Personalizado</h3>
         <div className="color-picker-container">
