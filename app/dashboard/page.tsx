@@ -10,7 +10,8 @@ import {
   liberarMatrizCompleta,
   applyTextoToMatriz,
   applyParpadeoPersonalizadoAction,
-  applyFlashFisicoAction, // ¡NUEVO!
+  applyFlashFisicoAction,
+  applyCombinedEffect, // ¡NUEVO!
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
   const { data: efectos } = await supabase.from("efectos").select("*");
   const { data: estadoConcierto } = await supabase
     .from("estado_concierto")
-    .select("efecto_parpadeo_config, efecto_flash_config, audio_url") // ¡NUEVO!
+    .select("efecto_parpadeo_config, efecto_flash_config, audio_url")
     .eq("id", 1)
     .single();
 
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
       }
       initialFlashConfig={
         estadoConcierto?.efecto_flash_config || { speed: 0.5 }
-      } // ¡NUEVO!
+      }
       getCeldasAction={getCeldas}
       createMatrizAction={createMatriz}
       syncEfectosAction={syncPredefinedEfectos}
@@ -56,7 +57,8 @@ export default async function DashboardPage() {
       liberarMatrizAction={liberarMatrizCompleta}
       applyTextoToMatrizAction={applyTextoToMatriz}
       applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction}
-      applyFlashFisicoAction={applyFlashFisicoAction} // ¡NUEVO!
+      applyFlashFisicoAction={applyFlashFisicoAction}
+      applyCombinedEffectAction={applyCombinedEffect} // ¡NUEVO!
     />
   );
 }
