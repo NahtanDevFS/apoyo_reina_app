@@ -19,12 +19,12 @@ type Celda = {
   efecto_id: number | null;
   letra_asignada: string | null;
 };
-type FlashConfig = { speed: number }; // ¡NUEVO!
+type ParpadeoConfig = { colors: string[]; speed: number }; // ¡NUEVO!
 
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
-  initialFlashConfig: FlashConfig; // ¡NUEVO!
+  initialParpadeoConfig: ParpadeoConfig; // ¡NUEVO!
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
   createMatrizAction: (formData: FormData) => Promise<any>;
   syncEfectosAction: () => Promise<any>;
@@ -37,13 +37,16 @@ type DashboardClientProps = {
   applyLetraAction: (celdaId: number, letra: string) => Promise<any>;
   liberarMatrizAction: (matrizId: number) => Promise<any>;
   applyTextoToMatrizAction: (matrizId: number, texto: string) => Promise<any>;
-  applyFlashPersonalizadoAction: (speed: number) => Promise<any>; // ¡NUEVO!
+  applyParpadeoPersonalizadoAction: (
+    colors: string[],
+    speed: number
+  ) => Promise<any>; // ¡NUEVO!
 };
 
 export default function DashboardClient({
   initialMatrices,
   initialEfectos,
-  initialFlashConfig,
+  initialParpadeoConfig,
   getCeldasAction,
   createMatrizAction,
   syncEfectosAction,
@@ -53,7 +56,7 @@ export default function DashboardClient({
   applyLetraAction,
   liberarMatrizAction,
   applyTextoToMatrizAction,
-  applyFlashPersonalizadoAction,
+  applyParpadeoPersonalizadoAction,
 }: DashboardClientProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -74,9 +77,14 @@ export default function DashboardClient({
   const [waveIntervalId, setWaveIntervalId] = useState<NodeJS.Timeout | null>(
     null
   );
-  const [flashSpeed, setFlashSpeed] = useState<number>(
-    initialFlashConfig.speed
-  ); // ¡NUEVO!
+
+  // --- ¡NUEVO! Estados para el parpadeo ---
+  const [parpadeoColors, setParpadeoColors] = useState<string[]>(
+    initialParpadeoConfig.colors
+  );
+  const [parpadeoSpeed, setParpadeoSpeed] = useState<number>(
+    initialParpadeoConfig.speed
+  );
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -108,6 +116,7 @@ export default function DashboardClient({
   }, [selectedMatrizId, getCeldasAction, isAuthenticated]);
 
   useEffect(() => {
+    // Limpiar el intervalo de la ola si el componente se desmonta o cambia la matriz
     return () => {
       if (waveIntervalId) clearInterval(waveIntervalId);
     };
@@ -126,7 +135,7 @@ export default function DashboardClient({
   };
 
   const handleSelectMatriz = (id: number) => {
-    stopWave();
+    stopWave(); // Detener cualquier ola al cambiar de matriz
     setSelectedMatrizId(id);
     setSelectedCeldas(new Set());
   };
@@ -211,10 +220,14 @@ export default function DashboardClient({
     });
   };
 
-  // --- ¡NUEVO! Handler para aplicar flash personalizado ---
-  const handleApplyFlash = () => {
+  // --- ¡NUEVO! Handler para aplicar parpadeo ---
+  const handleApplyParpadeo = () => {
+    if (parpadeoColors.length < 2) {
+      alert("Necesitas al menos 2 colores para el efecto de parpadeo.");
+      return;
+    }
     startTransition(async () => {
-      await applyFlashPersonalizadoAction(flashSpeed);
+      await applyParpadeoPersonalizadoAction(parpadeoColors, parpadeoSpeed);
     });
   };
 
@@ -236,7 +249,7 @@ export default function DashboardClient({
       const celdasToClear =
         celdasPorMatriz[selectedMatrizId!]?.map((c) => c.id) || [];
       if (celdasToClear.length > 0) {
-        await applyEfectoAction(celdasToClear, null);
+        await applyEfectoAction(celdasToClear, null); // Resetea a efecto inicial (null)
         await refreshCurrentMatrix();
       }
     }
@@ -245,16 +258,20 @@ export default function DashboardClient({
   const startWave = (waveType: string) => {
     if (waveIntervalId) clearInterval(waveIntervalId);
     if (!selectedMatrizId) return;
+
     const matriz = matrices.find((m) => m.id === selectedMatrizId);
     if (!matriz) return;
+
     const celdas = celdasPorMatriz[selectedMatrizId] || [];
     const efectoActivo = efectos.find((e) => e.nombre_css === "ola-activa");
     if (!efectoActivo) return;
+
     let step = 0;
     const interval = setInterval(() => {
       startTransition(async () => {
         let celdasParaActivarIds: number[] = [];
         let celdasParaDesactivarIds: number[] = [];
+
         if (waveType === "ola-horizontal") {
           const totalSteps = matriz.columnas;
           const currentColumn = step % totalSteps;
@@ -286,6 +303,7 @@ export default function DashboardClient({
           );
           const totalSteps = maxDist + 2;
           const currentRing = step % totalSteps;
+
           if (currentRing <= maxDist) {
             celdasParaActivarIds = celdas
               .filter(
@@ -308,19 +326,24 @@ export default function DashboardClient({
             )
             .map((c) => c.id);
         }
+
         step++;
+
         if (celdasParaActivarIds.length > 0)
           await applyEfectoAction(celdasParaActivarIds, efectoActivo.id);
         if (celdasParaDesactivarIds.length > 0)
           await applyEfectoAction(celdasParaDesactivarIds, null);
       });
-    }, 400);
+    }, 400); // Velocidad de la ola
+
     setWaveIntervalId(interval);
   };
 
   const handleApplyGlobalEfecto = async (efectoCss: string) => {
     await stopWave();
+
     if (efectoCss.startsWith("ola-")) {
+      // ↓↓↓ LÍNEA AÑADIDA ↓↓↓
       startTransition(() => applyGlobalEfectoAction(efectoCss));
       startWave(efectoCss);
     } else {
@@ -391,10 +414,12 @@ export default function DashboardClient({
           onApplyGlobalEfecto={handleApplyGlobalEfecto}
           isLetraButtonDisabled={isLetraButtonDisabled()}
           isPending={isPending}
-          // --- ¡NUEVO! Pasando props del flash ---
-          flashSpeed={flashSpeed}
-          setFlashSpeed={setFlashSpeed}
-          onApplyFlash={handleApplyFlash}
+          // --- ¡NUEVO! Pasando props al panel de control ---
+          parpadeoColors={parpadeoColors}
+          setParpadeoColors={setParpadeoColors}
+          parpadeoSpeed={parpadeoSpeed}
+          setParpadeoSpeed={setParpadeoSpeed}
+          onApplyParpadeo={handleApplyParpadeo}
         />
       </div>
     </div>

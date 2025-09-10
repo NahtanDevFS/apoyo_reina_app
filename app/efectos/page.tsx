@@ -15,7 +15,7 @@ type Celda = {
   letra_asignada: string | null;
 };
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
-type FlashConfig = { speed: number }; // ¡NUEVO!
+type ParpadeoConfig = { colors: string[]; speed: number }; // ¡NUEVO!
 
 export default function EfectoPage() {
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
@@ -42,14 +42,55 @@ export default function EfectoPage() {
   const prevEfectoRef = useRef<string>("inicial");
   const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTimestampRef = useRef<string | null>(null);
+  const styleSheetRef = useRef<CSSStyleSheet | null>(null); // ¡NUEVO!
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
+
+  // --- ¡NUEVO! Función para actualizar la animación CSS ---
+  const updateParpadeoAnimation = (config: ParpadeoConfig) => {
+    if (!styleSheetRef.current) {
+      const styleEl = document.createElement("style");
+      document.head.appendChild(styleEl);
+      styleSheetRef.current = styleEl.sheet;
+    }
+
+    // Limpiamos reglas anteriores
+    if (styleSheetRef.current && styleSheetRef.current.cssRules.length > 0) {
+      styleSheetRef.current.deleteRule(0);
+      styleSheetRef.current.deleteRule(0);
+    }
+
+    if (config.colors && config.colors.length >= 2) {
+      const keyframes = `
+        @keyframes parpadeo-dinamico {
+          ${config.colors
+            .map((color, index) => {
+              const step = 100 / config.colors.length;
+              return `${index * step}%, ${
+                (index + 1) * step - 0.01
+              }% { background-color: ${color}; }`;
+            })
+            .join("\n")}
+          100% { background-color: ${config.colors[0]}; }
+        }
+      `;
+      const animationClass = `
+        .efecto-parpadeo-personalizado {
+          animation: parpadeo-dinamico ${
+            config.speed * config.colors.length
+          }s infinite;
+        }
+      `;
+      styleSheetRef.current?.insertRule(keyframes, 0);
+      styleSheetRef.current?.insertRule(animationClass, 1);
+    }
+  };
 
   const scheduleEffect = (
     efecto: string,
     texto: string | null,
     timestamp: string,
-    flashConfig: FlashConfig | null
+    config: ParpadeoConfig | null
   ) => {
     if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
 
@@ -60,13 +101,12 @@ export default function EfectoPage() {
     const delay = Math.max(0, executionTime - clientTime);
 
     efectoTimeoutRef.current = setTimeout(() => {
-      // Si el efecto es el flash personalizado, lo iniciamos con la velocidad configurada
-      if (efecto === "flash-personalizado" && flashConfig) {
-        startFlashing(efecto, flashConfig.speed);
+      // ¡NUEVO! Actualizamos la animación si es necesario
+      if (efecto === "parpadeo-personalizado" && config) {
+        updateParpadeoAnimation(config);
       }
 
       setEfecto(efecto);
-
       if (efecto === "mostrar-letra" && texto) {
         startTextoLoop(texto);
       } else {
@@ -98,8 +138,7 @@ export default function EfectoPage() {
     controlFlash(false);
   };
 
-  // --- ¡MODIFICADO! Acepta una velocidad personalizada ---
-  const startFlashing = (flashType: string, customSpeed?: number) => {
+  const startFlashing = (flashType: string) => {
     stopFlashing();
     let pattern: number[] = [];
     switch (flashType) {
@@ -114,14 +153,6 @@ export default function EfectoPage() {
           150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100,
           150, 100, 150, 800,
         ];
-        break;
-      case "flash-personalizado":
-        if (customSpeed) {
-          const speedMs = customSpeed * 1000;
-          pattern = [speedMs, speedMs]; // El patrón es [encendido, apagado]
-        } else {
-          return; // No hacer nada si no hay velocidad
-        }
         break;
       default:
         return;
@@ -186,9 +217,11 @@ export default function EfectoPage() {
       setLetraMostrada(texto);
       return;
     }
+
     let index = 0;
     setLetraMostrada(texto[index]);
     index = (index + 1) % texto.length;
+
     textoIntervalRef.current = setInterval(() => {
       setLetraMostrada(texto[index]);
       index = (index + 1) % texto.length;
@@ -256,6 +289,7 @@ export default function EfectoPage() {
     if (celda.estado_celda === 1)
       return alert("Esta posición ya está ocupada.");
     if (!selectedMatriz) return;
+
     startTransition(async () => {
       const { data, error } = await supabase.rpc("ocupar_celda_especifica", {
         matriz_id_in: selectedMatriz.id,
@@ -331,16 +365,10 @@ export default function EfectoPage() {
     if (!celdaId) return;
 
     const handleEfectoChange = async (efectoActual: string) => {
-      // Inicia el flash solo para los efectos predefinidos
       if (efectoActual.startsWith("flash-fisico-")) {
         const cameraReady = await initCameraForFlash();
         if (cameraReady) startFlashing(efectoActual);
-      }
-      // Detiene el flash si el efecto anterior era de flash (incluido el personalizado)
-      else if (
-        prevEfectoRef.current.startsWith("flash-fisico-") ||
-        prevEfectoRef.current === "flash-personalizado"
-      ) {
+      } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
         stopFlashing();
       }
       prevEfectoRef.current = efectoActual;
@@ -348,24 +376,27 @@ export default function EfectoPage() {
 
     const verificarEstado = async () => {
       if (!celdaId) return;
+
       const { data: celdaData, error: celdaError } = await supabase
         .from("celdas")
         .select("estado_celda, efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
+
       if (celdaError || !celdaData) {
         console.error(
           "No se pudo obtener el estado de la celda, reintentando..."
         );
         return;
       }
+
       if (celdaData.estado_celda === 0) {
         return liberarMiCelda();
       }
-      // Obtenemos también la configuración del flash
+
       const { data: globalData } = await supabase
         .from("estado_concierto")
-        .select("efecto_actual, efecto_timestamp, efecto_flash_config")
+        .select("efecto_actual, efecto_timestamp, efecto_parpadeo_config") // ¡NUEVO!
         .eq("id", 1)
         .single();
 
@@ -373,13 +404,14 @@ export default function EfectoPage() {
 
       if (timestamp && timestamp !== lastTimestampRef.current) {
         lastTimestampRef.current = timestamp;
+
         const efectoGlobalNuevo = globalData?.efecto_actual || "inicial";
         const efectoCeldaNuevo = await getNombreEfecto(celdaData.efecto_id);
         const textoCelda = celdaData.letra_asignada;
-        const flashConfig =
-          globalData?.efecto_flash_config as FlashConfig | null;
-        let efectoFinal = "inicial";
+        const parpadeoConfig =
+          globalData?.efecto_parpadeo_config as ParpadeoConfig | null; // ¡NUEVO!
 
+        let efectoFinal = "inicial";
         if (
           efectoGlobalNuevo !== "inicial" &&
           !efectoGlobalNuevo.startsWith("efecto-ola")
@@ -389,12 +421,14 @@ export default function EfectoPage() {
           efectoFinal = efectoCeldaNuevo;
         }
 
-        scheduleEffect(efectoFinal, textoCelda, timestamp, flashConfig);
+        scheduleEffect(efectoFinal, textoCelda, timestamp, parpadeoConfig); // ¡NUEVO!
         handleEfectoChange(efectoFinal);
       }
     };
+
     verificarEstado();
     const intervalId = setInterval(verificarEstado, 350);
+
     return () => {
       clearInterval(intervalId);
       releaseCamera();
@@ -405,15 +439,10 @@ export default function EfectoPage() {
 
   const claseFondo = `efecto-${efecto}`;
 
-  // Para los efectos de flash, queremos que el fondo sea negro
-  const esEfectoFlash =
-    efecto.startsWith("flash-fisico-") || efecto === "flash-personalizado";
-  const fondoFinal = esEfectoFlash ? "efecto-apagon" : claseFondo;
-
   if (celdaId) {
     return (
       <div
-        className={`container-confirmacion ${fondoFinal}`}
+        className={`container-confirmacion ${claseFondo}`}
         onClick={handleScreenTap}
       >
         {efecto === "mostrar-letra" && letraMostrada ? (

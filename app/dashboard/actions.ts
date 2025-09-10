@@ -26,12 +26,8 @@ export async function syncPredefinedEfectos() {
     { nombre: "Parpadeo", nombre_css: "parpadeo" },
     { nombre: "Inicial", nombre_css: "inicial" },
     { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
-    { nombre: "Efecto Ola", nombre_css: "efecto-ola" },
-    // --- ¡EFECTOS DE FLASH ACTUALIZADOS! ---
-    { nombre: "Flash Físico Lento", nombre_css: "flash-fisico-lento" },
-    { nombre: "Flash Físico Rápido", nombre_css: "flash-fisico-rapido" },
-    { nombre: "Flash Físico SOS", nombre_css: "flash-fisico-sos" },
-    { nombre: "Flash Personalizado", nombre_css: "flash-personalizado" },
+    { nombre: "Efecto Ola", nombre_css: "efecto-ola" }, // Efecto de apoyo para las olas
+    { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" }, // ¡NUEVO!
   ];
   await supabaseAdmin
     .from("efectos")
@@ -51,14 +47,17 @@ export async function applyGlobalEfecto(nombreEfecto: string) {
   return { success: true };
 }
 
-// --- ¡NUEVA ACCIÓN PARA EL FLASH PERSONALIZADO! ---
-export async function applyFlashPersonalizadoAction(speed: number) {
-  const config = { speed };
+// ¡NUEVA! Acción para el parpadeo personalizado
+export async function applyParpadeoPersonalizadoAction(
+  colors: string[],
+  speed: number
+) {
+  const config = { colors, speed };
   const { error } = await supabaseAdmin
     .from("estado_concierto")
     .update({
-      efecto_flash_config: config,
-      efecto_actual: "flash-personalizado",
+      efecto_parpadeo_config: config,
+      efecto_actual: "parpadeo-personalizado",
       efecto_timestamp: new Date().toISOString(),
     })
     .eq("id", 1);
@@ -67,6 +66,7 @@ export async function applyFlashPersonalizadoAction(speed: number) {
   return { success: true };
 }
 
+// Modificado para no actualizar el timestamp, ya que el dashboard lo controla en bucle
 export async function applyEfectoToCeldas(
   celdasIds: number[],
   efectoId: number | null
@@ -118,6 +118,7 @@ export async function liberarCeldas(celdaIds: number[]) {
   return { success: true };
 }
 
+// --- ¡NUEVA! Acción para liberar todas las celdas de una matriz ---
 export async function liberarMatrizCompleta(matrizId: number) {
   if (!matrizId) return { error: "No se ha seleccionado una matriz." };
   const { error } = await supabaseAdmin
@@ -130,6 +131,7 @@ export async function liberarMatrizCompleta(matrizId: number) {
   return { success: true, message: "Todas las celdas han sido liberadas." };
 }
 
+// --- ¡NUEVA! Acción para aplicar texto a toda una matriz ---
 export async function applyTextoToMatriz(matrizId: number, texto: string) {
   if (!matrizId) return { error: "No se ha seleccionado una matriz." };
   const { data: efecto } = await supabaseAdmin
