@@ -28,7 +28,8 @@ export async function syncPredefinedEfectos() {
     { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
     { nombre: "Efecto Ola", nombre_css: "efecto-ola" },
     { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" },
-    { nombre: "Flash Físico Regulable", nombre_css: "flash-fisico-regulable" }, // ¡NUEVO!
+    { nombre: "Flash Físico Regulable", nombre_css: "flash-fisico-regulable" },
+    { nombre: "Reproducir Audio", nombre_css: "reproducir-audio" }, // ¡NUEVO!
   ];
   await supabaseAdmin
     .from("efectos")
@@ -37,12 +38,16 @@ export async function syncPredefinedEfectos() {
   return { success: true, message: "Efectos sincronizados." };
 }
 
-export async function applyGlobalEfecto(nombreEfecto: string) {
+export async function applyGlobalEfecto(
+  nombreEfecto: string,
+  audioUrl?: string
+) {
   await supabaseAdmin
     .from("estado_concierto")
     .update({
       efecto_actual: nombreEfecto,
       efecto_timestamp: new Date().toISOString(),
+      audio_url: audioUrl,
     })
     .eq("id", 1);
   return { success: true };

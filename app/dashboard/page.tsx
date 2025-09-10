@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const { data: efectos } = await supabase.from("efectos").select("*");
   const { data: estadoConcierto } = await supabase
     .from("estado_concierto")
-    .select("efecto_parpadeo_config, efecto_flash_config") // ¡NUEVO!
+    .select("efecto_parpadeo_config, efecto_flash_config, audio_url") // ¡NUEVO!
     .eq("id", 1)
     .single();
 
