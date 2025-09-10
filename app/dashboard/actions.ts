@@ -27,8 +27,7 @@ export async function syncPredefinedEfectos() {
     { nombre: "Inicial", nombre_css: "inicial" },
     { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
     { nombre: "Efecto Ola", nombre_css: "efecto-ola" },
-    { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" },
-    // --- ¡NUEVOS EFECTOS DE FLASH! ---
+    // --- ¡EFECTOS DE FLASH ACTUALIZADOS! ---
     { nombre: "Flash Físico Lento", nombre_css: "flash-fisico-lento" },
     { nombre: "Flash Físico Rápido", nombre_css: "flash-fisico-rapido" },
     { nombre: "Flash Físico SOS", nombre_css: "flash-fisico-sos" },
@@ -52,25 +51,7 @@ export async function applyGlobalEfecto(nombreEfecto: string) {
   return { success: true };
 }
 
-export async function applyParpadeoPersonalizadoAction(
-  colors: string[],
-  speed: number
-) {
-  const config = { colors, speed };
-  const { error } = await supabaseAdmin
-    .from("estado_concierto")
-    .update({
-      efecto_parpadeo_config: config,
-      efecto_actual: "parpadeo-personalizado",
-      efecto_timestamp: new Date().toISOString(),
-    })
-    .eq("id", 1);
-
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-}
-
-// --- ¡NUEVA ACCIÓN PARA EL FLASH! ---
+// --- ¡NUEVA ACCIÓN PARA EL FLASH PERSONALIZADO! ---
 export async function applyFlashPersonalizadoAction(speed: number) {
   const config = { speed };
   const { error } = await supabaseAdmin

@@ -1,6 +1,5 @@
 // app/dashboard/ControlPanel.tsx
 "use client";
-import { useState } from "react";
 
 type Efecto = { id: number; nombre: string; nombre_css: string };
 
@@ -21,11 +20,6 @@ type Props = {
   onApplyGlobalEfecto: (efectoCss: string) => void;
   isLetraButtonDisabled: boolean;
   isPending: boolean;
-  parpadeoColors: string[];
-  setParpadeoColors: (colors: string[]) => void;
-  parpadeoSpeed: number;
-  setParpadeoSpeed: (speed: number) => void;
-  onApplyParpadeo: () => void;
   // --- ¡NUEVO! Props para el flash ---
   flashSpeed: number;
   setFlashSpeed: (speed: number) => void;
@@ -49,34 +43,15 @@ export default function ControlPanel({
   onApplyGlobalEfecto,
   isLetraButtonDisabled,
   isPending,
-  parpadeoColors,
-  setParpadeoColors,
-  parpadeoSpeed,
-  setParpadeoSpeed,
-  onApplyParpadeo,
   // --- ¡NUEVO! Destructuración de props del flash ---
   flashSpeed,
   setFlashSpeed,
   onApplyFlash,
 }: Props) {
-  const [newColor, setNewColor] = useState("#FFFFFF");
-
-  const handleAddColor = () => {
-    if (newColor && !parpadeoColors.includes(newColor)) {
-      setParpadeoColors([...parpadeoColors, newColor]);
-    }
-  };
-
-  const handleRemoveColor = (colorToRemove: string) => {
-    setParpadeoColors(
-      parpadeoColors.filter((color) => color !== colorToRemove)
-    );
-  };
-
+  // Filtramos los efectos para no mostrar los que son de apoyo o personalizados
   const efectosVisibles = efectos.filter(
     (e) =>
       !e.nombre_css.includes("ola-activa") &&
-      !e.nombre_css.includes("parpadeo-personalizado") &&
       !e.nombre_css.includes("flash-personalizado")
   );
 
@@ -103,50 +78,10 @@ export default function ControlPanel({
         </button>
       </div>
 
-      <div className="control-group">
-        <h3>Parpadeo Personalizado</h3>
-        <div className="color-picker-container">
-          <input
-            type="color"
-            value={newColor}
-            onChange={(e) => setNewColor(e.target.value)}
-          />
-          <button onClick={handleAddColor} disabled={isPending}>
-            Añadir Color
-          </button>
-        </div>
-        <div className="color-list">
-          {parpadeoColors.map((color, index) => (
-            <div
-              key={index}
-              className="color-item"
-              style={{ backgroundColor: color }}
-            >
-              <button onClick={() => handleRemoveColor(color)}>X</button>
-            </div>
-          ))}
-        </div>
-        <label>Velocidad: {parpadeoSpeed}s</label>
-        <input
-          type="range"
-          min="0.1"
-          max="1"
-          step="0.1"
-          value={parpadeoSpeed}
-          onChange={(e) => setParpadeoSpeed(Number(e.target.value))}
-        />
-        <button
-          onClick={onApplyParpadeo}
-          disabled={isPending || parpadeoColors.length < 2}
-        >
-          Aplicar Parpadeo
-        </button>
-      </div>
-
       {/* --- ¡NUEVA! Sección de Flash Personalizado --- */}
       <div className="control-group">
         <h3>Flash Personalizado</h3>
-        <label>Velocidad (intervalo): {flashSpeed}s</label>
+        <label>Velocidad de Parpadeo: {flashSpeed}s</label>
         <input
           type="range"
           min="0.01"
