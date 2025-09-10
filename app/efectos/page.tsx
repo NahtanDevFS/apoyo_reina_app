@@ -16,7 +16,7 @@ type Celda = {
 };
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type ParpadeoConfig = { colors: string[]; speed: number };
-type FlashConfig = { speed: number }; // ¡NUEVO!
+type FlashConfig = { speed: number };
 
 export default function EfectoPage() {
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
@@ -36,6 +36,10 @@ export default function EfectoPage() {
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // --- ESTADO CLAVE ---
+  // Controla si el usuario ya interactuó con la página de efectos.
+  const [hasInteracted, setHasInteracted] = useState(false);
+
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const textoIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,8 +48,30 @@ export default function EfectoPage() {
   const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTimestampRef = useRef<string | null>(null);
   const styleSheetRef = useRef<CSSStyleSheet | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
+
+  // --- FUNCIÓN CLAVE ---
+  // Se ejecuta con el primer clic del usuario en esta página.
+  const handleInteraction = () => {
+    setHasInteracted(true);
+    // Inicializa el audio al interactuar.
+    if (audioRef.current) {
+      audioRef.current.play().catch(() => {});
+      audioRef.current.pause();
+    }
+    // Después de la interacción, decidimos a dónde llevar al usuario.
+    const idGuardado = sessionStorage.getItem("miCeldaId");
+    const infoGuardada = sessionStorage.getItem("miCeldaInfo");
+    if (idGuardado && infoGuardada) {
+      setCeldaId(Number(idGuardado));
+      setMiCeldaInfo(JSON.parse(infoGuardada));
+      setIsUiVisible(false);
+    } else {
+      cargarTodasLasMatrices();
+    }
+  };
 
   const updateParpadeoAnimation = (config: ParpadeoConfig) => {
     if (!styleSheetRef.current) {
@@ -90,7 +116,8 @@ export default function EfectoPage() {
     texto: string | null,
     timestamp: string,
     parpadeoConfig: ParpadeoConfig | null,
-    flashConfig: FlashConfig | null // ¡NUEVO!
+    flashConfig: FlashConfig | null,
+    audioUrl: string | null
   ) => {
     if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
 
@@ -105,7 +132,19 @@ export default function EfectoPage() {
         updateParpadeoAnimation(parpadeoConfig);
       }
 
-      // ¡NUEVO! Manejo del flash físico
+      if (efecto === "reproducir-audio" && audioUrl && audioRef.current) {
+        // Aseguramos que la URL sea absoluta para evitar problemas
+        const absoluteUrl = new URL(audioUrl, window.location.origin).href;
+        if (audioRef.current.src !== absoluteUrl) {
+          audioRef.current.src = absoluteUrl;
+        }
+        audioRef.current
+          .play()
+          .catch((e) => console.error("Error al reproducir audio:", e));
+      } else if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
       if (efecto === "flash-fisico-regulable" && flashConfig) {
         initCameraForFlash().then((ready) => {
           if (ready) startFlashing(flashConfig.speed);
@@ -146,7 +185,6 @@ export default function EfectoPage() {
     controlFlash(false);
   };
 
-  // ¡MODIFICADO! Acepta la velocidad como parámetro
   const startFlashing = (speed: number) => {
     stopFlashing();
     const intervalTime = speed * 1000;
@@ -155,7 +193,7 @@ export default function EfectoPage() {
       flashOn = !flashOn;
       controlFlash(flashOn);
     };
-    flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2); // Dividido por 2 para on/off
+    flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2);
   };
 
   const initCameraForFlash = async (): Promise<boolean> => {
@@ -234,6 +272,10 @@ export default function EfectoPage() {
     startTransition(async () => {
       releaseCamera();
       stopTextoLoop();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
@@ -311,15 +353,6 @@ export default function EfectoPage() {
   };
 
   useEffect(() => {
-    const idGuardado = sessionStorage.getItem("miCeldaId");
-    const infoGuardada = sessionStorage.getItem("miCeldaInfo");
-    if (idGuardado && infoGuardada) {
-      setCeldaId(Number(idGuardado));
-      setMiCeldaInfo(JSON.parse(infoGuardada));
-      setIsUiVisible(false);
-    } else {
-      cargarTodasLasMatrices();
-    }
     return () => {
       if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     };
@@ -357,7 +390,6 @@ export default function EfectoPage() {
 
     const handleEfectoChange = async (efectoActual: string) => {
       if (efectoActual === "flash-fisico-regulable") {
-        // La lógica se mueve a 'scheduleEffect' para sincronización
       } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
         stopFlashing();
       }
@@ -387,7 +419,7 @@ export default function EfectoPage() {
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select(
-          "efecto_actual, efecto_timestamp, efecto_parpadeo_config, efecto_flash_config"
+          "efecto_actual, efecto_timestamp, efecto_parpadeo_config, efecto_flash_config, audio_url"
         )
         .eq("id", 1)
         .single();
@@ -403,7 +435,8 @@ export default function EfectoPage() {
         const parpadeoConfig =
           globalData?.efecto_parpadeo_config as ParpadeoConfig | null;
         const flashConfig =
-          globalData?.efecto_flash_config as FlashConfig | null; // ¡NUEVO!
+          globalData?.efecto_flash_config as FlashConfig | null;
+        const audioUrl = globalData?.audio_url as string | null;
 
         let efectoFinal = "inicial";
         if (
@@ -420,8 +453,9 @@ export default function EfectoPage() {
           textoCelda,
           timestamp,
           parpadeoConfig,
-          flashConfig
-        ); // ¡NUEVO!
+          flashConfig,
+          audioUrl
+        );
         handleEfectoChange(efectoFinal);
       }
     };
@@ -439,12 +473,26 @@ export default function EfectoPage() {
 
   const claseFondo = `efecto-${efecto}`;
 
+  if (!hasInteracted) {
+    return (
+      <div className="container-seleccion">
+        <h1>Bienvenido</h1>
+        <p>Presiona el botón para unirte a la experiencia interactiva.</p>
+        <button onClick={handleInteraction} className="boton-matriz">
+          Unirse
+        </button>
+        <audio ref={audioRef} loop style={{ display: "none" }} />
+      </div>
+    );
+  }
+
   if (celdaId) {
     return (
       <div
         className={`container-confirmacion ${claseFondo}`}
         onClick={handleScreenTap}
       >
+        <audio ref={audioRef} loop />
         {efecto === "mostrar-letra" && letraMostrada ? (
           <div className="container-letra">
             <span className="letra-display">{letraMostrada}</span>

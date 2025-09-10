@@ -29,6 +29,9 @@ type Props = {
   flashSpeed: number; // ¡NUEVO!
   setFlashSpeed: (speed: number) => void; // ¡NUEVO!
   onApplyFlash: () => void; // ¡NUEVO!
+  audioUrl: string;
+  setAudioUrl: (url: string) => void;
+  onApplyAudio: () => void;
 };
 
 export default function ControlPanel({
@@ -56,6 +59,9 @@ export default function ControlPanel({
   flashSpeed, // ¡NUEVO!
   setFlashSpeed, // ¡NUEVO!
   onApplyFlash, // ¡NUEVO!
+  audioUrl,
+  setAudioUrl,
+  onApplyAudio,
 }: Props) {
   const [newColor, setNewColor] = useState("#FFFFFF");
 
@@ -75,7 +81,8 @@ export default function ControlPanel({
     (e) =>
       e.nombre_css !== "ola-activa" &&
       e.nombre_css !== "parpadeo-personalizado" &&
-      e.nombre_css !== "flash-fisico-regulable"
+      e.nombre_css !== "flash-fisico-regulable" &&
+      e.nombre_css !== "reproducir-audio"
   );
 
   return (
@@ -98,6 +105,19 @@ export default function ControlPanel({
           disabled={isPending}
         >
           Resetear Global
+        </button>
+      </div>
+
+      <div className="control-group">
+        <h3>Audio en Bucle</h3>
+        <input
+          type="text"
+          placeholder="URL del audio"
+          value={audioUrl}
+          onChange={(e) => setAudioUrl(e.target.value)}
+        />
+        <button onClick={onApplyAudio} disabled={isPending}>
+          Reproducir Audio
         </button>
       </div>
 

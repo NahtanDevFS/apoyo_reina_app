@@ -34,7 +34,10 @@ type DashboardClientProps = {
     celdaIds: number[],
     efectoId: number | null
   ) => Promise<any>;
-  applyGlobalEfectoAction: (nombreEfecto: string) => Promise<any>;
+  applyGlobalEfectoAction: (
+    nombreEfecto: string,
+    audioUrl?: string
+  ) => Promise<any>;
   liberarCeldasAction: (celdaIds: number[]) => Promise<any>;
   applyLetraAction: (celdaId: number, letra: string) => Promise<any>;
   liberarMatrizAction: (matrizId: number) => Promise<any>;
@@ -92,6 +95,9 @@ export default function DashboardClient({
   const [flashSpeed, setFlashSpeed] = useState<number>(
     initialFlashConfig.speed
   ); // ¡NUEVO!
+  // --- ¡CAMBIO AQUÍ! ---
+  // Cambia "/trompeta.mp3" por el nombre de tu archivo de audio.
+  const [audioUrl, setAudioUrl] = useState("/fire_alarm.mp3");
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -240,6 +246,12 @@ export default function DashboardClient({
   const handleApplyFlash = () => {
     startTransition(async () => {
       await applyFlashFisicoAction(flashSpeed);
+    });
+  };
+
+  const handleApplyAudio = () => {
+    startTransition(async () => {
+      await applyGlobalEfectoAction("reproducir-audio", audioUrl);
     });
   };
 
@@ -433,6 +445,9 @@ export default function DashboardClient({
           flashSpeed={flashSpeed} // ¡NUEVO!
           setFlashSpeed={setFlashSpeed} // ¡NUEVO!
           onApplyFlash={handleApplyFlash} // ¡NUEVO!
+          audioUrl={audioUrl}
+          setAudioUrl={setAudioUrl}
+          onApplyAudio={handleApplyAudio}
         />
       </div>
     </div>
