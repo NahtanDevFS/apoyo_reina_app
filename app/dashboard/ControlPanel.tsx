@@ -1,5 +1,6 @@
 // app/dashboard/ControlPanel.tsx
 "use client";
+import { useState } from "react";
 
 type Efecto = { id: number; nombre: string; nombre_css: string };
 
@@ -20,6 +21,12 @@ type Props = {
   onApplyGlobalEfecto: (efectoCss: string) => void;
   isLetraButtonDisabled: boolean;
   isPending: boolean;
+  // --- ¡NUEVO! Props para el parpadeo ---
+  parpadeoColors: string[];
+  setParpadeoColors: (colors: string[]) => void;
+  parpadeoSpeed: number;
+  setParpadeoSpeed: (speed: number) => void;
+  onApplyParpadeo: () => void;
 };
 
 export default function ControlPanel({
@@ -39,9 +46,31 @@ export default function ControlPanel({
   onApplyGlobalEfecto,
   isLetraButtonDisabled,
   isPending,
+  // --- ¡NUEVO! Destructuración de props ---
+  parpadeoColors,
+  setParpadeoColors,
+  parpadeoSpeed,
+  setParpadeoSpeed,
+  onApplyParpadeo,
 }: Props) {
-  // Filtramos los efectos para no mostrar 'ola-activa' como un botón, ya que es un efecto de apoyo
-  const efectosVisibles = efectos.filter(e => e.nombre_css !== 'ola-activa');
+  const [newColor, setNewColor] = useState("#FFFFFF");
+
+  const handleAddColor = () => {
+    if (newColor && !parpadeoColors.includes(newColor)) {
+      setParpadeoColors([...parpadeoColors, newColor]);
+    }
+  };
+
+  const handleRemoveColor = (colorToRemove: string) => {
+    setParpadeoColors(
+      parpadeoColors.filter((color) => color !== colorToRemove)
+    );
+  };
+
+  const efectosVisibles = efectos.filter(
+    (e) =>
+      e.nombre_css !== "ola-activa" && e.nombre_css !== "parpadeo-personalizado"
+  );
 
   return (
     <div className="card control-panel">
@@ -50,33 +79,101 @@ export default function ControlPanel({
       <div className="control-group">
         <h3>Efectos Globales</h3>
         {efectosVisibles.map((e) => (
-          <button key={e.id} onClick={() => onApplyGlobalEfecto(e.nombre_css)} disabled={isPending}>
+          <button
+            key={e.id}
+            onClick={() => onApplyGlobalEfecto(e.nombre_css)}
+            disabled={isPending}
+          >
             {e.nombre}
           </button>
         ))}
-        <button onClick={() => onApplyGlobalEfecto("inicial")} disabled={isPending}>
+        <button
+          onClick={() => onApplyGlobalEfecto("inicial")}
+          disabled={isPending}
+        >
           Resetear Global
+        </button>
+      </div>
+
+      {/* --- ¡NUEVO! Sección de Parpadeo Personalizado --- */}
+      <div className="control-group">
+        <h3>Parpadeo Personalizado</h3>
+        <div className="color-picker-container">
+          <input
+            type="color"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+          />
+          <button onClick={handleAddColor} disabled={isPending}>
+            Añadir Color
+          </button>
+        </div>
+        <div className="color-list">
+          {parpadeoColors.map((color, index) => (
+            <div
+              key={index}
+              className="color-item"
+              style={{ backgroundColor: color }}
+            >
+              <button onClick={() => handleRemoveColor(color)}>X</button>
+            </div>
+          ))}
+        </div>
+        <label>Velocidad: {parpadeoSpeed}s</label>
+        <input
+          type="range"
+          min="0.1"
+          max="1"
+          step="0.1"
+          value={parpadeoSpeed}
+          onChange={(e) => setParpadeoSpeed(Number(e.target.value))}
+        />
+        <button
+          onClick={onApplyParpadeo}
+          disabled={isPending || parpadeoColors.length < 2}
+        >
+          Aplicar Parpadeo Personalizado
         </button>
       </div>
 
       <div className="control-group">
         <h3>Control por Celda (Seleccionadas)</h3>
-        <select onChange={(e) => onEfectoChange(e.target.value)} value={selectedEfectoId}>
-          <option disabled value="">Selecciona un efecto</option>
+        <select
+          onChange={(e) => onEfectoChange(e.target.value)}
+          value={selectedEfectoId}
+        >
+          <option disabled value="">
+            Selecciona un efecto
+          </option>
           <option value="ninguno">Ninguno (Resetear)</option>
-          {efectosVisibles.map((e) => (<option key={e.id} value={e.id}>{e.nombre}</option>))}
+          {efectosVisibles.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.nombre}
+            </option>
+          ))}
         </select>
-        <button onClick={onApplyEfecto} disabled={isPending || selectedCeldasCount === 0}>
+        <button
+          onClick={onApplyEfecto}
+          disabled={isPending || selectedCeldasCount === 0}
+        >
           Aplicar a {selectedCeldasCount} celdas
         </button>
-        <button onClick={onLiberar} disabled={isPending || selectedCeldasCount === 0}>
+        <button
+          onClick={onLiberar}
+          disabled={isPending || selectedCeldasCount === 0}
+        >
           Liberar {selectedCeldasCount} celdas
         </button>
       </div>
 
       <div className="control-group">
         <h3>Efecto de Texto (1 celda ocupada)</h3>
-        <input type="text" placeholder="Escribe una palabra" value={letra} onChange={(e) => onLetraChange(e.target.value)} />
+        <input
+          type="text"
+          placeholder="Escribe una palabra"
+          value={letra}
+          onChange={(e) => onLetraChange(e.target.value)}
+        />
         <button onClick={onApplyLetra} disabled={isLetraButtonDisabled}>
           Mostrar Texto en Celda
         </button>
@@ -84,11 +181,23 @@ export default function ControlPanel({
 
       <div className="control-group">
         <h3>Acciones de Matriz Completa</h3>
-        <input type="text" placeholder="Texto para todos" value={textoGlobal} onChange={(e) => onTextoGlobalChange(e.target.value)} />
-        <button onClick={onApplyTextoToMatriz} disabled={isPending || !textoGlobal.trim()}>
+        <input
+          type="text"
+          placeholder="Texto para todos"
+          value={textoGlobal}
+          onChange={(e) => onTextoGlobalChange(e.target.value)}
+        />
+        <button
+          onClick={onApplyTextoToMatriz}
+          disabled={isPending || !textoGlobal.trim()}
+        >
           Enviar Texto a Todos
         </button>
-        <button onClick={onLiberarMatriz} disabled={isPending} className="btn-danger">
+        <button
+          onClick={onLiberarMatriz}
+          disabled={isPending}
+          className="btn-danger"
+        >
           Liberar Matriz Completa
         </button>
       </div>

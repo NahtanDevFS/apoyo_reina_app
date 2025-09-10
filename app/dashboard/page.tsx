@@ -7,14 +7,21 @@ import {
   applyGlobalEfecto,
   liberarCeldas,
   applyTextoToCelda,
-  liberarMatrizCompleta,   // ¡NUEVO!
-  applyTextoToMatriz,    // ¡NUEVO!
+  liberarMatrizCompleta,
+  applyTextoToMatriz,
+  applyParpadeoPersonalizadoAction, // ¡NUEVO!
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
 export default async function DashboardPage() {
   const { data: matrices } = await supabase.from("matrices").select("*");
   const { data: efectos } = await supabase.from("efectos").select("*");
+  // ¡NUEVO! Obtenemos la configuración del parpadeo
+  const { data: estadoConcierto } = await supabase
+    .from("estado_concierto")
+    .select("efecto_parpadeo_config")
+    .eq("id", 1)
+    .single();
 
   const getCeldas = async (matrizId: number) => {
     "use server";
@@ -30,6 +37,12 @@ export default async function DashboardPage() {
     <DashboardClient
       initialMatrices={matrices || []}
       initialEfectos={efectos || []}
+      initialParpadeoConfig={
+        estadoConcierto?.efecto_parpadeo_config || {
+          colors: ["#FFFFFF", "#000000"],
+          speed: 0.5,
+        }
+      } // ¡NUEVO!
       getCeldasAction={getCeldas}
       createMatrizAction={createMatriz}
       syncEfectosAction={syncPredefinedEfectos}
@@ -37,8 +50,9 @@ export default async function DashboardPage() {
       applyGlobalEfectoAction={applyGlobalEfecto}
       liberarCeldasAction={liberarCeldas}
       applyLetraAction={applyTextoToCelda}
-      liberarMatrizAction={liberarMatrizCompleta} // ¡NUEVO!
-      applyTextoToMatrizAction={applyTextoToMatriz} // ¡NUEVO!
+      liberarMatrizAction={liberarMatrizCompleta}
+      applyTextoToMatrizAction={applyTextoToMatriz}
+      applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction} // ¡NUEVO!
     />
   );
 }
