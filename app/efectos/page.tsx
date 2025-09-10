@@ -36,8 +36,6 @@ export default function EfectoPage() {
   const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // --- ESTADO CLAVE ---
-  // Controla si el usuario ya interactuó con la página de efectos.
   const [hasInteracted, setHasInteracted] = useState(false);
 
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
@@ -52,16 +50,12 @@ export default function EfectoPage() {
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
 
-  // --- FUNCIÓN CLAVE ---
-  // Se ejecuta con el primer clic del usuario en esta página.
   const handleInteraction = () => {
     setHasInteracted(true);
-    // Inicializa el audio al interactuar.
     if (audioRef.current) {
       audioRef.current.play().catch(() => {});
       audioRef.current.pause();
     }
-    // Después de la interacción, decidimos a dónde llevar al usuario.
     const idGuardado = sessionStorage.getItem("miCeldaId");
     const infoGuardada = sessionStorage.getItem("miCeldaInfo");
     if (idGuardado && infoGuardada) {
@@ -129,19 +123,17 @@ export default function EfectoPage() {
 
     efectoTimeoutRef.current = setTimeout(() => {
       if (
-        (efecto === "parpadeo-personalizado" ||
-          efecto === "efecto-combinado") &&
+        (efecto === "parpadeo-personalizado" || efecto === "combinado") &&
         parpadeoConfig
       ) {
         updateParpadeoAnimation(parpadeoConfig);
       }
 
       if (
-        (efecto === "reproducir-audio" || efecto === "efecto-combinado") &&
+        (efecto === "reproducir-audio" || efecto === "combinado") &&
         audioUrl &&
         audioRef.current
       ) {
-        // Aseguramos que la URL sea absoluta para evitar problemas
         const absoluteUrl = new URL(audioUrl, window.location.origin).href;
         if (audioRef.current.src !== absoluteUrl) {
           audioRef.current.src = absoluteUrl;
@@ -154,8 +146,7 @@ export default function EfectoPage() {
       }
 
       if (
-        (efecto === "flash-fisico-regulable" ||
-          efecto === "efecto-combinado") &&
+        (efecto === "flash-fisico-regulable" || efecto === "combinado") &&
         flashConfig
       ) {
         initCameraForFlash().then((ready) => {
@@ -403,12 +394,11 @@ export default function EfectoPage() {
     const handleEfectoChange = async (efectoActual: string) => {
       if (
         efectoActual === "flash-fisico-regulable" ||
-        efectoActual === "efecto-combinado"
+        efectoActual === "combinado"
       ) {
-        // No hacer nada, ya se maneja en scheduleEffect
       } else if (
         prevEfectoRef.current.startsWith("flash-fisico-") ||
-        prevEfectoRef.current === "efecto-combinado"
+        prevEfectoRef.current === "combinado"
       ) {
         stopFlashing();
       }
