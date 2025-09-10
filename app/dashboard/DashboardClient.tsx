@@ -19,12 +19,14 @@ type Celda = {
   efecto_id: number | null;
   letra_asignada: string | null;
 };
-type ParpadeoConfig = { colors: string[]; speed: number }; // ¡NUEVO!
+type ParpadeoConfig = { colors: string[]; speed: number };
+type FlashConfig = { speed: number }; // ¡NUEVO!
 
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
-  initialParpadeoConfig: ParpadeoConfig; // ¡NUEVO!
+  initialParpadeoConfig: ParpadeoConfig;
+  initialFlashConfig: FlashConfig; // ¡NUEVO!
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
   createMatrizAction: (formData: FormData) => Promise<any>;
   syncEfectosAction: () => Promise<any>;
@@ -40,13 +42,15 @@ type DashboardClientProps = {
   applyParpadeoPersonalizadoAction: (
     colors: string[],
     speed: number
-  ) => Promise<any>; // ¡NUEVO!
+  ) => Promise<any>;
+  applyFlashFisicoAction: (speed: number) => Promise<any>; // ¡NUEVO!
 };
 
 export default function DashboardClient({
   initialMatrices,
   initialEfectos,
   initialParpadeoConfig,
+  initialFlashConfig,
   getCeldasAction,
   createMatrizAction,
   syncEfectosAction,
@@ -57,6 +61,7 @@ export default function DashboardClient({
   liberarMatrizAction,
   applyTextoToMatrizAction,
   applyParpadeoPersonalizadoAction,
+  applyFlashFisicoAction,
 }: DashboardClientProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -78,13 +83,15 @@ export default function DashboardClient({
     null
   );
 
-  // --- ¡NUEVO! Estados para el parpadeo ---
   const [parpadeoColors, setParpadeoColors] = useState<string[]>(
     initialParpadeoConfig.colors
   );
   const [parpadeoSpeed, setParpadeoSpeed] = useState<number>(
     initialParpadeoConfig.speed
   );
+  const [flashSpeed, setFlashSpeed] = useState<number>(
+    initialFlashConfig.speed
+  ); // ¡NUEVO!
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -116,7 +123,6 @@ export default function DashboardClient({
   }, [selectedMatrizId, getCeldasAction, isAuthenticated]);
 
   useEffect(() => {
-    // Limpiar el intervalo de la ola si el componente se desmonta o cambia la matriz
     return () => {
       if (waveIntervalId) clearInterval(waveIntervalId);
     };
@@ -135,7 +141,7 @@ export default function DashboardClient({
   };
 
   const handleSelectMatriz = (id: number) => {
-    stopWave(); // Detener cualquier ola al cambiar de matriz
+    stopWave();
     setSelectedMatrizId(id);
     setSelectedCeldas(new Set());
   };
@@ -220,7 +226,6 @@ export default function DashboardClient({
     });
   };
 
-  // --- ¡NUEVO! Handler para aplicar parpadeo ---
   const handleApplyParpadeo = () => {
     if (parpadeoColors.length < 2) {
       alert("Necesitas al menos 2 colores para el efecto de parpadeo.");
@@ -228,6 +233,13 @@ export default function DashboardClient({
     }
     startTransition(async () => {
       await applyParpadeoPersonalizadoAction(parpadeoColors, parpadeoSpeed);
+    });
+  };
+
+  // ¡NUEVO! Handler para aplicar flash físico
+  const handleApplyFlash = () => {
+    startTransition(async () => {
+      await applyFlashFisicoAction(flashSpeed);
     });
   };
 
@@ -249,7 +261,7 @@ export default function DashboardClient({
       const celdasToClear =
         celdasPorMatriz[selectedMatrizId!]?.map((c) => c.id) || [];
       if (celdasToClear.length > 0) {
-        await applyEfectoAction(celdasToClear, null); // Resetea a efecto inicial (null)
+        await applyEfectoAction(celdasToClear, null);
         await refreshCurrentMatrix();
       }
     }
@@ -334,7 +346,7 @@ export default function DashboardClient({
         if (celdasParaDesactivarIds.length > 0)
           await applyEfectoAction(celdasParaDesactivarIds, null);
       });
-    }, 400); // Velocidad de la ola
+    }, 400);
 
     setWaveIntervalId(interval);
   };
@@ -343,7 +355,6 @@ export default function DashboardClient({
     await stopWave();
 
     if (efectoCss.startsWith("ola-")) {
-      // ↓↓↓ LÍNEA AÑADIDA ↓↓↓
       startTransition(() => applyGlobalEfectoAction(efectoCss));
       startWave(efectoCss);
     } else {
@@ -414,12 +425,14 @@ export default function DashboardClient({
           onApplyGlobalEfecto={handleApplyGlobalEfecto}
           isLetraButtonDisabled={isLetraButtonDisabled()}
           isPending={isPending}
-          // --- ¡NUEVO! Pasando props al panel de control ---
           parpadeoColors={parpadeoColors}
           setParpadeoColors={setParpadeoColors}
           parpadeoSpeed={parpadeoSpeed}
           setParpadeoSpeed={setParpadeoSpeed}
           onApplyParpadeo={handleApplyParpadeo}
+          flashSpeed={flashSpeed} // ¡NUEVO!
+          setFlashSpeed={setFlashSpeed} // ¡NUEVO!
+          onApplyFlash={handleApplyFlash} // ¡NUEVO!
         />
       </div>
     </div>

@@ -9,17 +9,17 @@ import {
   applyTextoToCelda,
   liberarMatrizCompleta,
   applyTextoToMatriz,
-  applyParpadeoPersonalizadoAction, // ¡NUEVO!
+  applyParpadeoPersonalizadoAction,
+  applyFlashFisicoAction, // ¡NUEVO!
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
 export default async function DashboardPage() {
   const { data: matrices } = await supabase.from("matrices").select("*");
   const { data: efectos } = await supabase.from("efectos").select("*");
-  // ¡NUEVO! Obtenemos la configuración del parpadeo
   const { data: estadoConcierto } = await supabase
     .from("estado_concierto")
-    .select("efecto_parpadeo_config")
+    .select("efecto_parpadeo_config, efecto_flash_config") // ¡NUEVO!
     .eq("id", 1)
     .single();
 
@@ -42,6 +42,9 @@ export default async function DashboardPage() {
           colors: ["#FFFFFF", "#000000"],
           speed: 0.5,
         }
+      }
+      initialFlashConfig={
+        estadoConcierto?.efecto_flash_config || { speed: 0.5 }
       } // ¡NUEVO!
       getCeldasAction={getCeldas}
       createMatrizAction={createMatriz}
@@ -52,7 +55,8 @@ export default async function DashboardPage() {
       applyLetraAction={applyTextoToCelda}
       liberarMatrizAction={liberarMatrizCompleta}
       applyTextoToMatrizAction={applyTextoToMatriz}
-      applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction} // ¡NUEVO!
+      applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction}
+      applyFlashFisicoAction={applyFlashFisicoAction} // ¡NUEVO!
     />
   );
 }

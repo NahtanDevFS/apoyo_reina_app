@@ -15,7 +15,8 @@ type Celda = {
   letra_asignada: string | null;
 };
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
-type ParpadeoConfig = { colors: string[]; speed: number }; // ¡NUEVO!
+type ParpadeoConfig = { colors: string[]; speed: number };
+type FlashConfig = { speed: number }; // ¡NUEVO!
 
 export default function EfectoPage() {
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
@@ -42,11 +43,10 @@ export default function EfectoPage() {
   const prevEfectoRef = useRef<string>("inicial");
   const efectoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTimestampRef = useRef<string | null>(null);
-  const styleSheetRef = useRef<CSSStyleSheet | null>(null); // ¡NUEVO!
+  const styleSheetRef = useRef<CSSStyleSheet | null>(null);
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
 
-  // --- ¡NUEVO! Función para actualizar la animación CSS ---
   const updateParpadeoAnimation = (config: ParpadeoConfig) => {
     if (!styleSheetRef.current) {
       const styleEl = document.createElement("style");
@@ -54,7 +54,6 @@ export default function EfectoPage() {
       styleSheetRef.current = styleEl.sheet;
     }
 
-    // Limpiamos reglas anteriores
     if (styleSheetRef.current && styleSheetRef.current.cssRules.length > 0) {
       styleSheetRef.current.deleteRule(0);
       styleSheetRef.current.deleteRule(0);
@@ -90,7 +89,8 @@ export default function EfectoPage() {
     efecto: string,
     texto: string | null,
     timestamp: string,
-    config: ParpadeoConfig | null
+    parpadeoConfig: ParpadeoConfig | null,
+    flashConfig: FlashConfig | null // ¡NUEVO!
   ) => {
     if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
 
@@ -101,9 +101,17 @@ export default function EfectoPage() {
     const delay = Math.max(0, executionTime - clientTime);
 
     efectoTimeoutRef.current = setTimeout(() => {
-      // ¡NUEVO! Actualizamos la animación si es necesario
-      if (efecto === "parpadeo-personalizado" && config) {
-        updateParpadeoAnimation(config);
+      if (efecto === "parpadeo-personalizado" && parpadeoConfig) {
+        updateParpadeoAnimation(parpadeoConfig);
+      }
+
+      // ¡NUEVO! Manejo del flash físico
+      if (efecto === "flash-fisico-regulable" && flashConfig) {
+        initCameraForFlash().then((ready) => {
+          if (ready) startFlashing(flashConfig.speed);
+        });
+      } else {
+        stopFlashing();
       }
 
       setEfecto(efecto);
@@ -132,39 +140,22 @@ export default function EfectoPage() {
 
   const stopFlashing = () => {
     if (flashIntervalRef.current) {
-      clearTimeout(flashIntervalRef.current);
+      clearInterval(flashIntervalRef.current);
       flashIntervalRef.current = null;
     }
     controlFlash(false);
   };
 
-  const startFlashing = (flashType: string) => {
+  // ¡MODIFICADO! Acepta la velocidad como parámetro
+  const startFlashing = (speed: number) => {
     stopFlashing();
-    let pattern: number[] = [];
-    switch (flashType) {
-      case "flash-fisico-lento":
-        pattern = [1000, 1000];
-        break;
-      case "flash-fisico-rapido":
-        pattern = [200, 200];
-        break;
-      case "flash-fisico-sos":
-        pattern = [
-          150, 100, 150, 100, 150, 400, 400, 100, 400, 100, 400, 400, 150, 100,
-          150, 100, 150, 800,
-        ];
-        break;
-      default:
-        return;
-    }
-    let i = 0;
-    const executePattern = () => {
-      controlFlash(i % 2 === 0);
-      const duration = pattern[i % pattern.length];
-      i++;
-      flashIntervalRef.current = setTimeout(executePattern, duration);
+    const intervalTime = speed * 1000;
+    let flashOn = false;
+    const executeFlash = () => {
+      flashOn = !flashOn;
+      controlFlash(flashOn);
     };
-    executePattern();
+    flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2); // Dividido por 2 para on/off
   };
 
   const initCameraForFlash = async (): Promise<boolean> => {
@@ -365,9 +356,8 @@ export default function EfectoPage() {
     if (!celdaId) return;
 
     const handleEfectoChange = async (efectoActual: string) => {
-      if (efectoActual.startsWith("flash-fisico-")) {
-        const cameraReady = await initCameraForFlash();
-        if (cameraReady) startFlashing(efectoActual);
+      if (efectoActual === "flash-fisico-regulable") {
+        // La lógica se mueve a 'scheduleEffect' para sincronización
       } else if (prevEfectoRef.current.startsWith("flash-fisico-")) {
         stopFlashing();
       }
@@ -396,7 +386,9 @@ export default function EfectoPage() {
 
       const { data: globalData } = await supabase
         .from("estado_concierto")
-        .select("efecto_actual, efecto_timestamp, efecto_parpadeo_config") // ¡NUEVO!
+        .select(
+          "efecto_actual, efecto_timestamp, efecto_parpadeo_config, efecto_flash_config"
+        )
         .eq("id", 1)
         .single();
 
@@ -409,7 +401,9 @@ export default function EfectoPage() {
         const efectoCeldaNuevo = await getNombreEfecto(celdaData.efecto_id);
         const textoCelda = celdaData.letra_asignada;
         const parpadeoConfig =
-          globalData?.efecto_parpadeo_config as ParpadeoConfig | null; // ¡NUEVO!
+          globalData?.efecto_parpadeo_config as ParpadeoConfig | null;
+        const flashConfig =
+          globalData?.efecto_flash_config as FlashConfig | null; // ¡NUEVO!
 
         let efectoFinal = "inicial";
         if (
@@ -421,7 +415,13 @@ export default function EfectoPage() {
           efectoFinal = efectoCeldaNuevo;
         }
 
-        scheduleEffect(efectoFinal, textoCelda, timestamp, parpadeoConfig); // ¡NUEVO!
+        scheduleEffect(
+          efectoFinal,
+          textoCelda,
+          timestamp,
+          parpadeoConfig,
+          flashConfig
+        ); // ¡NUEVO!
         handleEfectoChange(efectoFinal);
       }
     };
