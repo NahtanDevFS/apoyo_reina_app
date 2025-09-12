@@ -17,12 +17,15 @@ type Celda = {
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type ParpadeoConfig = { colors: string[]; speed: number };
 type FlashConfig = { speed: number };
-// Interfaz para un objeto WakeLockSentinel, que previene que la pantalla se apague
 interface WakeLockSentinel {
   release(): Promise<void>;
   readonly released: boolean;
   type: 'screen';
 }
+// CORRECCIÓN: webkitAudioContext ahora es opcional para evitar el error de tipo.
+type CustomWindow = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
 
 
 export default function EfectoPage() {
@@ -77,11 +80,12 @@ export default function EfectoPage() {
     setHasInteracted(true);
     activarPantallaCompleta();
     
-    if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContext = window.AudioContext || (window as CustomWindow).webkitAudioContext;
+    if (!audioContextRef.current && AudioContext) {
+        audioContextRef.current = new AudioContext();
     }
     
-    if (audioContextRef.current.state === 'suspended') {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume();
     }
 
@@ -119,9 +123,14 @@ export default function EfectoPage() {
     stopBeatDetection();
     beatColorsRef.current = config.colors || [];
     if (beatColorsRef.current.length < 1) return;
-  
+
+    const AudioContext = window.AudioContext || (window as CustomWindow).webkitAudioContext;
     if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (!AudioContext) {
+            console.error("Web Audio API is not supported in this browser.");
+            return;
+        }
+        audioContextRef.current = new AudioContext();
     } else if (audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
     }
@@ -137,7 +146,7 @@ export default function EfectoPage() {
       const bufferLength = analyserRef.current.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
   
-      let energyHistory = new Array(43).fill(0);
+      const energyHistory = new Array(43).fill(0);
       let lastBeatTime = 0;
   
       const detect = (time: number) => {
@@ -171,11 +180,11 @@ export default function EfectoPage() {
   }, [stopBeatDetection]);
   
 
-  const updateParpadeoAnimation = (config: ParpadeoConfig) => {
+  const updateParpadeoAnimation = useCallback((config: ParpadeoConfig) => {
     if (!styleSheetRef.current) {
       const styleEl = document.createElement("style");
       document.head.appendChild(styleEl);
-      styleSheetRef.current = styleEl.sheet;
+      styleSheetRef.current = styleEl.sheet as CSSStyleSheet;
     }
 
     if (styleSheetRef.current && styleSheetRef.current.cssRules.length > 0) {
@@ -216,9 +225,9 @@ export default function EfectoPage() {
           console.error("Error inserting CSS rules:", e);
       }
     }
-  };
+  }, []);
 
-  const controlFlash = async (state: boolean) => {
+  const controlFlash = useCallback(async (state: boolean) => {
     if (
       videoTrackRef.current &&
       (videoTrackRef.current.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch
@@ -231,17 +240,17 @@ export default function EfectoPage() {
         console.error("Error al controlar el flash:", err);
       }
     }
-  };
+  }, []);
   
-  const stopFlashing = () => {
+  const stopFlashing = useCallback(() => {
     if (flashIntervalRef.current) {
       clearInterval(flashIntervalRef.current);
       flashIntervalRef.current = null;
     }
     controlFlash(false);
-  };
+  }, [controlFlash]);
   
-  const startFlashing = (speed: number) => {
+  const startFlashing = useCallback((speed: number) => {
     stopFlashing();
     const intervalTime = speed * 1000;
     let flashOn = false;
@@ -250,17 +259,17 @@ export default function EfectoPage() {
       controlFlash(flashOn);
     };
     flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2);
-  };
+  }, [stopFlashing, controlFlash]);
   
-  const stopTextoLoop = () => {
+  const stopTextoLoop = useCallback(() => {
     if (textoIntervalRef.current) {
       clearInterval(textoIntervalRef.current);
       textoIntervalRef.current = null;
     }
     setLetraMostrada(null);
-  };
+  }, []);
   
-  const startTextoLoop = (texto: string) => {
+  const startTextoLoop = useCallback((texto: string) => {
     stopTextoLoop();
     if (!texto) return;
     if (texto.length <= 1) {
@@ -276,7 +285,33 @@ export default function EfectoPage() {
       setLetraMostrada(texto[index]);
       index = (index + 1) % texto.length;
     }, 800);
-  };
+  }, [stopTextoLoop]);
+
+  const initCameraForFlash = useCallback(async (): Promise<boolean> => {
+    if (videoTrackRef.current) return true;
+    if (
+      !("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)
+    ) {
+      console.error("Flash Control: MediaDevices API not supported.");
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      const track = stream.getVideoTracks()[0];
+      if (!(track.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch) {
+        console.error("Flash Control: Torch capability not supported.");
+        track.stop();
+        return false;
+      }
+      videoTrackRef.current = track;
+      return true;
+    } catch (err) {
+      console.error("Flash Control: Could not get camera access.", err);
+      return false;
+    }
+  }, []);
 
   const scheduleEffect = useCallback((
     efecto: string,
@@ -342,35 +377,8 @@ export default function EfectoPage() {
         stopTextoLoop();
       }
     }, delay);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopBeatDetection, startBeatDetection]);
+  }, [stopBeatDetection, updateParpadeoAnimation, startBeatDetection, initCameraForFlash, startFlashing, stopFlashing, startTextoLoop, stopTextoLoop]);
   
-
-  const initCameraForFlash = async (): Promise<boolean> => {
-    if (videoTrackRef.current) return true;
-    if (
-      !("mediaDevices" in navigator && "getUserMedia" in navigator.mediaDevices)
-    ) {
-      console.error("Flash Control: MediaDevices API not supported.");
-      return false;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      const track = stream.getVideoTracks()[0];
-      if (!(track.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch) {
-        console.error("Flash Control: Torch capability not supported.");
-        track.stop();
-        return false;
-      }
-      videoTrackRef.current = track;
-      return true;
-    } catch (err) {
-      console.error("Flash Control: Could not get camera access.", err);
-      return false;
-    }
-  };
 
   const releaseCamera = useCallback(() => {
     stopFlashing();
@@ -379,7 +387,7 @@ export default function EfectoPage() {
       videoTrackRef.current = null;
       console.log("Cámara liberada.");
     }
-  }, []);
+  }, [stopFlashing]);
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
@@ -574,7 +582,7 @@ export default function EfectoPage() {
       stopBeatDetection();
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
-  }, [celdaId, releaseCamera, scheduleEffect, stopBeatDetection]);
+  }, [celdaId, releaseCamera, scheduleEffect, stopBeatDetection, stopFlashing, stopTextoLoop]);
 
   const claseFondo = `efecto-${efecto}`;
 
