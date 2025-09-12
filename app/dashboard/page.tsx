@@ -10,6 +10,7 @@ import {
   liberarMatrizCompleta,
   applyTextoToMatriz,
   applyParpadeoPersonalizadoAction,
+  applyRitmoInteractivoAction, // <-- IMPORTAMOS LA NUEVA ACCIÓN
   applyFlashFisicoAction,
   applyCombinedEffect,
 } from "./actions";
@@ -57,6 +58,7 @@ export default async function DashboardPage() {
       liberarMatrizAction={liberarMatrizCompleta}
       applyTextoToMatrizAction={applyTextoToMatriz}
       applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction}
+      applyRitmoInteractivoAction={applyRitmoInteractivoAction} // <-- PASAMOS LA ACCIÓN
       applyFlashFisicoAction={applyFlashFisicoAction}
       applyCombinedEffectAction={applyCombinedEffect}
     />

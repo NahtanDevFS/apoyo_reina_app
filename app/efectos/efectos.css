@@ -250,3 +250,12 @@
 .efecto-parpadeo-personalizado {
   background-color: #121212; /* Color inicial por defecto */
 }
+
+/* ... al final de app/efectos/efectos.css ... */
+
+.efecto-ritmo-interactivo {
+  /* El color de fondo será manejado por JavaScript, 
+     pero podemos poner un color base */
+  background-color: #121212;
+  transition: background-color 0.05s ease-out; /* Transición rápida para el ritmo */
+}
