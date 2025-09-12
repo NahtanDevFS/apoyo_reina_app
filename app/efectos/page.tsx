@@ -49,9 +49,21 @@ export default function EfectoPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const SYNCHRONIZATION_DELAY_MS = 2000;
+  
+  const activarPantallaCompleta = () => {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch((err) => {
+        console.error(
+          `Error al intentar activar la pantalla completa: ${err.message} (${err.name})`
+        );
+      });
+    }
+  };
 
   const handleInteraction = () => {
     setHasInteracted(true);
+    activarPantallaCompleta();
     if (audioRef.current) {
       audioRef.current.play().catch(() => {});
       audioRef.current.pause();
@@ -322,8 +334,6 @@ export default function EfectoPage() {
   const seleccionarCelda = async (
     celda: Pick<Celda, "id" | "fila" | "columna" | "estado_celda">
   ) => {
-    if (celda.estado_celda === 1)
-      return alert("Esta posición ya está ocupada.");
     if (!selectedMatriz) return;
 
     startTransition(async () => {
@@ -334,7 +344,7 @@ export default function EfectoPage() {
       });
       if (error || !data || data.length === 0) {
         cargarCeldasDeMatriz(selectedMatriz);
-        return alert("Alguien más tomó este lugar. ¡Intenta de nuevo!");
+        return alert("Error al seleccionar el lugar. ¡Intenta de nuevo!");
       }
       const nuevaCeldaId = data[0].celda_id;
       if (nuevaCeldaId) {
@@ -421,10 +431,6 @@ export default function EfectoPage() {
         return;
       }
 
-      if (celdaData.estado_celda === 0) {
-        return liberarMiCelda();
-      }
-
       const { data: globalData } = await supabase
         .from("estado_concierto")
         .select(
@@ -485,8 +491,14 @@ export default function EfectoPage() {
   if (!hasInteracted) {
     return (
       <div className="container-seleccion">
-        <h1>Bienvenido</h1>
-        <p>Presiona el botón para unirte a la experiencia interactiva.</p>
+        <h1>¡Bienvenido a la Experiencia Interactiva!</h1>
+        <p>
+          Prepárate para ser parte del espectáculo. Cuando presiones "Unirse", 
+          la aplicación pasará a pantalla completa.
+        </p>
+        <p>
+          <strong>¡El evento está a punto de comenzar!</strong>
+        </p>
         <button onClick={handleInteraction} className="boton-matriz">
           Unirse
         </button>
@@ -509,7 +521,7 @@ export default function EfectoPage() {
         ) : (
           <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
             <h1>¡Listo!</h1>
-            <p>Tu posición está confirmada.</p>
+            <p>Presiona Salir cuando ya no quieras ser parte de la Experiencia</p>
             <div className="luz-indicadora"></div>
           </div>
         )}
@@ -546,7 +558,7 @@ export default function EfectoPage() {
                 celda.estado_celda === 1 ? "ocupada" : "libre"
               }`}
               onClick={() => seleccionarCelda(celda)}
-              disabled={isPending || celda.estado_celda === 1}
+              disabled={isPending}
               title={`Fila ${celda.fila}, Columna ${celda.columna}`}
             />
           ))}
