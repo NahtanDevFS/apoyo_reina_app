@@ -443,7 +443,7 @@ export default function EfectoPage() {
       .order("fila, columna");
     if (error) return setMensaje("No se pudieron cargar las posiciones.");
     setCeldas(data);
-    setMensaje(`Elige tu posición en ${matriz.nombre}`);
+    setMensaje(`Presione el Cuadro`);
   };
 
   const seleccionarCelda = async (
