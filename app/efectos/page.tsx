@@ -294,7 +294,8 @@ export default function EfectoPage() {
         audioRef.current.src = "";
       }
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
-      await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
+      // Ya no necesitamos notificar a la DB que la celda se libera de la misma forma
+      // pero mantenemos la limpieza local
       sessionStorage.removeItem("miCeldaId");
       setCeldaId(null);
       setIsUiVisible(true);
@@ -331,26 +332,16 @@ export default function EfectoPage() {
     setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
+  // *** CORRECCIÓN PRINCIPAL ***
+  // Esta función ahora es mucho más simple. Ya no llama a la base de datos
+  // para "ocupar" una celda, eliminando así la fuente del error.
   const seleccionarCelda = async (
     celda: Pick<Celda, "id" | "fila" | "columna" | "estado_celda">
   ) => {
-    if (!selectedMatriz) return;
-
-    startTransition(async () => {
-      const { data, error } = await supabase.rpc("ocupar_celda_especifica", {
-        matriz_id_in: selectedMatriz.id,
-        fila_in: celda.fila,
-        columna_in: celda.columna,
-      });
-      if (error || !data || data.length === 0) {
-        cargarCeldasDeMatriz(selectedMatriz);
-        return alert("Error al seleccionar el lugar. ¡Intenta de nuevo!");
-      }
-      const nuevaCeldaId = (data[0] as { celda_id: number }).celda_id;
-      if (nuevaCeldaId) {
+    startTransition(() => {
+        const nuevaCeldaId = celda.id;
         setCeldaId(nuevaCeldaId);
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
-      }
     });
   };
 
@@ -415,21 +406,18 @@ export default function EfectoPage() {
     const verificarEstado = async () => {
       if (!celdaId) return;
 
+      // La lógica de verificar si la celda fue liberada remotamente ya no es necesaria
+      // porque no estamos cambiando su estado en la base de datos.
+      // Sin embargo, mantenemos la lógica para recibir efectos.
+
       const { data: celdaData, error: celdaError } = await supabase
         .from("celdas")
-        .select("estado_celda, efecto_id, letra_asignada")
+        .select("efecto_id, letra_asignada") // Ya no necesitamos 'estado_celda'
         .eq("id", celdaId)
         .single();
-
+      
       if (celdaError || !celdaData) {
-        console.error(
-          "No se pudo obtener el estado de la celda, reintentando..."
-        );
-        return;
-      }
-
-      if (celdaData.estado_celda === 0) {
-        liberarMiCelda();
+        console.error("No se pudo obtener el estado de la celda, reintentando...");
         return;
       }
 
@@ -523,7 +511,7 @@ export default function EfectoPage() {
         ) : (
           <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
             <h1>¡Listo!</h1>
-            <p>Tu posición está confirmada.</p>
+            <p>Presiona salir si quieres salir de la Experiencia.</p>
             <div className="luz-indicadora"></div>
           </div>
         )}
@@ -556,9 +544,7 @@ export default function EfectoPage() {
           {celdas.map((celda) => (
             <button
               key={celda.id}
-              // **CORRECCIÓN FINAL**: Se elimina la clase `ocupada` para que no haya distinción visual
-              // y se elimina el `disabled` para permitir la selección múltiple.
-              className="celda-seleccion libre"
+              className={"celda-seleccion libre"}
               onClick={() => seleccionarCelda(celda)}
               disabled={isPending}
               title={`Fila ${celda.fila}, Columna ${celda.columna}`}
