@@ -10,9 +10,10 @@ import {
   liberarMatrizCompleta,
   applyTextoToMatriz,
   applyParpadeoPersonalizadoAction,
-  applyRitmoInteractivoAction, // <-- IMPORTAMOS LA NUEVA ACCIÓN
   applyFlashFisicoAction,
   applyCombinedEffect,
+  applyRitmoInteractivoAction,
+  getAudioFiles, // <-- 1. Importar la nueva acción
 } from "./actions";
 import DashboardClient from "./DashboardClient";
 
@@ -24,6 +25,9 @@ export default async function DashboardPage() {
     .select("efecto_parpadeo_config, efecto_flash_config, audio_url")
     .eq("id", 1)
     .single();
+
+  // 2. Llamar a la acción para obtener la lista de archivos
+  const { files: audioFiles } = await getAudioFiles();
 
   const getCeldas = async (matrizId: number) => {
     "use server";
@@ -39,6 +43,7 @@ export default async function DashboardPage() {
     <DashboardClient
       initialMatrices={matrices || []}
       initialEfectos={efectos || []}
+      initialAudioFiles={audioFiles || []} // <-- 3. Pasar la lista al componente
       initialParpadeoConfig={
         estadoConcierto?.efecto_parpadeo_config || {
           colors: ["#FFFFFF", "#000000"],
@@ -58,7 +63,7 @@ export default async function DashboardPage() {
       liberarMatrizAction={liberarMatrizCompleta}
       applyTextoToMatrizAction={applyTextoToMatriz}
       applyParpadeoPersonalizadoAction={applyParpadeoPersonalizadoAction}
-      applyRitmoInteractivoAction={applyRitmoInteractivoAction} // <-- PASAMOS LA ACCIÓN
+      applyRitmoInteractivoAction={applyRitmoInteractivoAction}
       applyFlashFisicoAction={applyFlashFisicoAction}
       applyCombinedEffectAction={applyCombinedEffect}
     />
