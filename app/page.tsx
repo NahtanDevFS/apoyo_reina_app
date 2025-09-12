@@ -1,5 +1,6 @@
+// app/page.tsx
 import Link from "next/link";
-("./inicio.css"); // Asegúrate que la ruta a tu CSS module es correcta
+import "./inicio.css"; // CORRECCIÓN: Se cambió de ("./inicio.css") a una importación estándar.
 import { redirect } from "next/navigation";
 
 export default function Home() {

@@ -6,14 +6,18 @@ import { useState, FormEvent } from 'react';
 // Tipos
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 
+// CORRECCIÓN: Tipo para la respuesta de la acción del servidor
+type ActionResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
+
 type Props = {
   matrices: Matriz[];
   selectedMatrizId: number | null;
   onSelectMatriz: (id: number) => void;
-  createMatrizAction: (formData: FormData) => Promise<any>;
-  // --- ¡CORRECCIÓN AQUÍ! ---
-  // Cambiamos el tipo esperado. Ahora acepta una función normal (void),
-  // que es exactamente lo que DashboardClient le está pasando.
+  createMatrizAction: (formData: FormData) => Promise<ActionResponse>;
   syncEfectosAction: () => void;
 };
 
@@ -70,7 +74,8 @@ export default function MatrixSelectionPanel({
             Nueva Matriz
           </button>
           <button className="gestion-button" onClick={syncEfectosAction}>
-            
+            {/* CORRECCIÓN: Se añade el icono al botón */}
+            <SyncIcon />
             Sincronizar Efectos
           </button>
         </div>
