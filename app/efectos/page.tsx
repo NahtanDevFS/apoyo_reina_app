@@ -17,6 +17,13 @@ type Celda = {
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
 type ParpadeoConfig = { colors: string[]; speed: number };
 type FlashConfig = { speed: number };
+// Interfaz para un objeto WakeLockSentinel, que previene que la pantalla se apague
+interface WakeLockSentinel {
+  release(): Promise<void>;
+  readonly released: boolean;
+  type: 'screen';
+}
+
 
 export default function EfectoPage() {
   const [allMatrices, setAllMatrices] = useState<Matriz[]>([]);
@@ -25,7 +32,6 @@ export default function EfectoPage() {
     Pick<Celda, "id" | "fila" | "columna" | "estado_celda">[]
   >([]);
   const [celdaId, setCeldaId] = useState<number | null>(null);
-  // CORRECCIÓN: Se eliminó el estado `miCeldaInfo` que no se estaba utilizando.
   const [efecto, setEfecto] = useState<string>("inicial");
   const [letraMostrada, setLetraMostrada] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("Cargando eventos...");
@@ -50,7 +56,7 @@ export default function EfectoPage() {
   const activarPantallaCompleta = () => {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch((err: Error) => { // CORRECCIÓN: Se añadió tipo al error
+      elem.requestFullscreen().catch((err: Error) => {
         console.error(
           `Error al intentar activar la pantalla completa: ${err.message} (${err.name})`
         );
@@ -109,6 +115,21 @@ export default function EfectoPage() {
       `;
       styleSheetRef.current?.insertRule(keyframes, 0);
       styleSheetRef.current?.insertRule(animationClass, 1);
+    }
+  };
+
+  const controlFlash = async (state: boolean) => {
+    if (
+      videoTrackRef.current &&
+      (videoTrackRef.current.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch
+    ) {
+      try {
+        await videoTrackRef.current.applyConstraints({
+          advanced: [{ torch: state } as MediaTrackConstraints],
+        });
+      } catch (err) {
+        console.error("Error al controlar el flash:", err);
+      }
     }
   };
   
@@ -217,21 +238,6 @@ export default function EfectoPage() {
     }, delay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const controlFlash = async (state: boolean) => {
-    if (
-      videoTrackRef.current &&
-      (videoTrackRef.current.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch
-    ) {
-      try {
-        await videoTrackRef.current.applyConstraints({
-          advanced: [{ torch: state } as MediaTrackConstraints],
-        });
-      } catch (err) {
-        console.error("Error al controlar el flash:", err);
-      }
-    }
-  };
 
   const initCameraForFlash = async (): Promise<boolean> => {
     if (videoTrackRef.current) return true;
@@ -480,7 +486,6 @@ export default function EfectoPage() {
       stopTextoLoop();
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
-  // CORRECCIÓN: Se añadieron las dependencias faltantes para cumplir con las reglas de los hooks.
   }, [celdaId, releaseCamera, scheduleEffect]);
 
   const claseFondo = `efecto-${efecto}`;
@@ -490,7 +495,6 @@ export default function EfectoPage() {
       <div className="container-seleccion">
         <h1>¡Bienvenido a la Experiencia Interactiva!</h1>
         <p>
-          {/* CORRECIÓN: Se usan comillas simples para evitar el error de escapado. */}
           Prepárate para ser parte del espectáculo. Cuando presiones Unirse, 
           la aplicación pasará a pantalla completa.
         </p>
@@ -552,9 +556,9 @@ export default function EfectoPage() {
           {celdas.map((celda) => (
             <button
               key={celda.id}
-              className={`celda-seleccion ${
-                celda.estado_celda === 1 ? "ocupada" : "libre"
-              }`}
+              // **CORRECCIÓN FINAL**: Se elimina la clase `ocupada` para que no haya distinción visual
+              // y se elimina el `disabled` para permitir la selección múltiple.
+              className="celda-seleccion libre"
               onClick={() => seleccionarCelda(celda)}
               disabled={isPending}
               title={`Fila ${celda.fila}, Columna ${celda.columna}`}
