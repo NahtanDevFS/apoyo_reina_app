@@ -21,16 +21,12 @@ const updateTimestamp = async () => {
 export async function syncPredefinedEfectos() {
   const predefinedEfectos = [
     { nombre: "Apagón", nombre_css: "apagon" },
-    { nombre: "Rojo Pulsante", nombre_css: "rojo-pulsante" },
-    { nombre: "Arcoíris", nombre_css: "arcoiris" },
-    { nombre: "Parpadeo", nombre_css: "parpadeo" },
-    { nombre: "Inicial", nombre_css: "inicial" },
     { nombre: "Mostrar Letra", nombre_css: "mostrar-letra" },
-    { nombre: "Efecto Ola", nombre_css: "efecto-ola" },
     { nombre: "Parpadeo Personalizado", nombre_css: "parpadeo-personalizado" },
     { nombre: "Flash Físico Regulable", nombre_css: "flash-fisico-regulable" },
     { nombre: "Reproducir Audio", nombre_css: "reproducir-audio" },
-    { nombre: "Efecto Combinado", nombre_css: "combinado" }, // ¡CORREGIDO!
+    { nombre: "Efecto Combinado", nombre_css: "combinado" },
+    { nombre: "Ritmo Interactivo", nombre_css: "ritmo-interactivo" }, // <-- NUEVO EFECTO
   ];
   await supabaseAdmin
     .from("efectos")
@@ -71,6 +67,26 @@ export async function applyParpadeoPersonalizadoAction(
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
+
+// NUEVA ACCIÓN para el efecto de ritmo
+export async function applyRitmoInteractivoAction(
+  colors: string[],
+  speed: number // Aunque la velocidad la marcará el ritmo, podemos usarla como sensibilidad o fallback
+) {
+  const config = { colors, speed };
+  const { error } = await supabaseAdmin
+    .from("estado_concierto")
+    .update({
+      efecto_parpadeo_config: config,
+      efecto_actual: "ritmo-interactivo",
+      efecto_timestamp: new Date().toISOString(),
+    })
+    .eq("id", 1);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
 
 export async function applyFlashFisicoAction(speed: number) {
   const config = { speed };

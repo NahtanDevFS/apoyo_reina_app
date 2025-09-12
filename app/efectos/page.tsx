@@ -41,6 +41,15 @@ export default function EfectoPage() {
 
   const [hasInteracted, setHasInteracted] = useState(false);
 
+  // --- Refs para Audio y Ritmo ---
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const beatDetectionIntervalRef = useRef<number | null>(null);
+  const beatColorsRef = useRef<string[]>([]);
+  const beatIndexRef = useRef<number>(0);
+  const [backgroundColor, setBackgroundColor] = useState<string>('#121212');
+  
   const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const textoIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -67,6 +76,15 @@ export default function EfectoPage() {
   const handleInteraction = () => {
     setHasInteracted(true);
     activarPantallaCompleta();
+    
+    if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    
+    if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+    }
+
     if (audioRef.current) {
       audioRef.current.play().catch(() => {});
       audioRef.current.pause();
@@ -80,6 +98,79 @@ export default function EfectoPage() {
     }
   };
 
+  const stopBeatDetection = useCallback(() => {
+    if (beatDetectionIntervalRef.current) {
+      cancelAnimationFrame(beatDetectionIntervalRef.current);
+      beatDetectionIntervalRef.current = null;
+    }
+    if (sourceRef.current) {
+      sourceRef.current.mediaStream?.getTracks().forEach(track => track.stop());
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    if (analyserRef.current) {
+      analyserRef.current.disconnect();
+      analyserRef.current = null;
+    }
+    setBackgroundColor('#121212');
+  }, []);
+
+  const startBeatDetection = useCallback(async (config: ParpadeoConfig) => {
+    stopBeatDetection();
+    beatColorsRef.current = config.colors || [];
+    if (beatColorsRef.current.length < 1) return;
+  
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } else if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.7;
+      sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
+      sourceRef.current.connect(analyserRef.current);
+  
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+  
+      let energyHistory = new Array(43).fill(0);
+      let lastBeatTime = 0;
+  
+      const detect = (time: number) => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+  
+        const bassEnergy = dataArray.slice(1, 5).reduce((sum, value) => sum + value * value, 0);
+  
+        const averageEnergy = energyHistory.reduce((sum, value) => sum + value, 0) / energyHistory.length;
+  
+        const threshold = averageEnergy * 1.2;
+  
+        if (bassEnergy > threshold && bassEnergy > 60000 && (time - lastBeatTime) > 150) {
+            lastBeatTime = time;
+            beatIndexRef.current = (beatIndexRef.current + 1) % beatColorsRef.current.length;
+            setBackgroundColor(beatColorsRef.current[beatIndexRef.current]);
+        }
+  
+        energyHistory.push(bassEnergy);
+        energyHistory.shift();
+  
+        beatDetectionIntervalRef.current = requestAnimationFrame(detect);
+      };
+      
+      detect(performance.now());
+  
+    } catch (err) {
+      console.error("Error al acceder al micrófono:", err);
+      stopBeatDetection();
+    }
+  }, [stopBeatDetection]);
+  
+
   const updateParpadeoAnimation = (config: ParpadeoConfig) => {
     if (!styleSheetRef.current) {
       const styleEl = document.createElement("style");
@@ -88,8 +179,13 @@ export default function EfectoPage() {
     }
 
     if (styleSheetRef.current && styleSheetRef.current.cssRules.length > 0) {
-      styleSheetRef.current.deleteRule(0);
-      styleSheetRef.current.deleteRule(0);
+        try {
+            while (styleSheetRef.current.cssRules.length > 0) {
+                styleSheetRef.current.deleteRule(0);
+            }
+        } catch (e) {
+            console.error("Error clearing CSS rules:", e);
+        }
     }
 
     if (config.colors && config.colors.length >= 2) {
@@ -113,8 +209,12 @@ export default function EfectoPage() {
           }s infinite;
         }
       `;
-      styleSheetRef.current?.insertRule(keyframes, 0);
-      styleSheetRef.current?.insertRule(animationClass, 1);
+      try {
+        styleSheetRef.current?.insertRule(keyframes, 0);
+        styleSheetRef.current?.insertRule(animationClass, 1);
+      } catch (e) {
+          console.error("Error inserting CSS rules:", e);
+      }
     }
   };
 
@@ -187,21 +287,27 @@ export default function EfectoPage() {
     audioUrl: string | null
   ) => {
     if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
-
+  
     const serverTime = new Date(timestamp).getTime();
     const clientTime = new Date().getTime();
     const executionTime = serverTime + SYNCHRONIZATION_DELAY_MS;
-
+  
     const delay = Math.max(0, executionTime - clientTime);
-
+  
     efectoTimeoutRef.current = setTimeout(() => {
+      if (efecto !== "ritmo-interactivo") {
+        stopBeatDetection();
+      }
+  
       if (
         (efecto === "parpadeo-personalizado" || efecto === "combinado") &&
         parpadeoConfig
       ) {
         updateParpadeoAnimation(parpadeoConfig);
+      } else if (efecto === "ritmo-interactivo" && parpadeoConfig) {
+        startBeatDetection(parpadeoConfig);
       }
-
+  
       if (
         (efecto === "reproducir-audio" || efecto === "combinado") &&
         audioUrl &&
@@ -217,7 +323,7 @@ export default function EfectoPage() {
       } else if (audioRef.current) {
         audioRef.current.pause();
       }
-
+  
       if (
         (efecto === "flash-fisico-regulable" || efecto === "combinado") &&
         flashConfig
@@ -228,7 +334,7 @@ export default function EfectoPage() {
       } else {
         stopFlashing();
       }
-
+  
       setEfecto(efecto);
       if (efecto === "mostrar-letra" && texto) {
         startTextoLoop(texto);
@@ -237,7 +343,8 @@ export default function EfectoPage() {
       }
     }, delay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopBeatDetection, startBeatDetection]);
+  
 
   const initCameraForFlash = async (): Promise<boolean> => {
     if (videoTrackRef.current) return true;
@@ -289,13 +396,12 @@ export default function EfectoPage() {
     startTransition(async () => {
       releaseCamera();
       stopTextoLoop();
+      stopBeatDetection();
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = "";
       }
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
-      // Ya no necesitamos notificar a la DB que la celda se libera de la misma forma
-      // pero mantenemos la limpieza local
       sessionStorage.removeItem("miCeldaId");
       setCeldaId(null);
       setIsUiVisible(true);
@@ -332,9 +438,6 @@ export default function EfectoPage() {
     setMensaje(`Elige tu posición en ${matriz.nombre}`);
   };
 
-  // *** CORRECCIÓN PRINCIPAL ***
-  // Esta función ahora es mucho más simple. Ya no llama a la base de datos
-  // para "ocupar" una celda, eliminando así la fuente del error.
   const seleccionarCelda = async (
     celda: Pick<Celda, "id" | "fila" | "columna" | "estado_celda">
   ) => {
@@ -406,13 +509,9 @@ export default function EfectoPage() {
     const verificarEstado = async () => {
       if (!celdaId) return;
 
-      // La lógica de verificar si la celda fue liberada remotamente ya no es necesaria
-      // porque no estamos cambiando su estado en la base de datos.
-      // Sin embargo, mantenemos la lógica para recibir efectos.
-
       const { data: celdaData, error: celdaError } = await supabase
         .from("celdas")
-        .select("efecto_id, letra_asignada") // Ya no necesitamos 'estado_celda'
+        .select("efecto_id, letra_asignada")
         .eq("id", celdaId)
         .single();
       
@@ -472,9 +571,10 @@ export default function EfectoPage() {
       clearInterval(intervalId);
       releaseCamera();
       stopTextoLoop();
+      stopBeatDetection();
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
-  }, [celdaId, releaseCamera, scheduleEffect]);
+  }, [celdaId, releaseCamera, scheduleEffect, stopBeatDetection]);
 
   const claseFondo = `efecto-${efecto}`;
 
@@ -484,7 +584,8 @@ export default function EfectoPage() {
         <h1>¡Bienvenido a la Experiencia Interactiva!</h1>
         <p>
           Prepárate para ser parte del espectáculo. Cuando presiones Unirse, 
-          la aplicación pasará a pantalla completa.
+          la aplicación pasará a pantalla completa y podría solicitarte
+          acceso al micrófono para los efectos de ritmo.
         </p>
         <p>
           <strong>¡El evento está a punto de comenzar!</strong>
@@ -498,9 +599,12 @@ export default function EfectoPage() {
   }
 
   if (celdaId) {
+    const dynamicStyle = efecto === 'ritmo-interactivo' ? { backgroundColor } : {};
+
     return (
       <div
         className={`container-confirmacion ${claseFondo}`}
+        style={dynamicStyle}
         onClick={handleScreenTap}
       >
         <audio ref={audioRef} loop />
@@ -525,6 +629,7 @@ export default function EfectoPage() {
       </div>
     );
   }
+  
 
   if (selectedMatriz) {
     return (

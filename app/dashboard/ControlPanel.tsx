@@ -26,6 +26,7 @@ type Props = {
   parpadeoSpeed: number;
   setParpadeoSpeed: (speed: number) => void;
   onApplyParpadeo: () => void;
+  onApplyRitmoInteractivo: () => void; // <-- NUEVA PROP
   flashSpeed: number;
   setFlashSpeed: (speed: number) => void;
   onApplyFlash: () => void;
@@ -57,6 +58,7 @@ export default function ControlPanel({
   parpadeoSpeed,
   setParpadeoSpeed,
   onApplyParpadeo,
+  onApplyRitmoInteractivo, // <-- NUEVA PROP
   flashSpeed,
   setFlashSpeed,
   onApplyFlash,
@@ -85,7 +87,8 @@ export default function ControlPanel({
       e.nombre_css !== "parpadeo-personalizado" &&
       e.nombre_css !== "flash-fisico-regulable" &&
       e.nombre_css !== "reproducir-audio" &&
-      e.nombre_css !== "combinado"
+      e.nombre_css !== "combinado" &&
+      e.nombre_css !== "ritmo-interactivo" // Ocultamos también el nuevo
   );
 
   return (
@@ -152,7 +155,7 @@ export default function ControlPanel({
       </div>
 
       <div className="control-group">
-        <h3>Parpadeo Personalizado</h3>
+        <h3>Parpadeo y Ritmo</h3>
         <div className="color-picker-container">
           <input
             type="color"
@@ -174,7 +177,7 @@ export default function ControlPanel({
             </div>
           ))}
         </div>
-        <label>Velocidad: {parpadeoSpeed}s</label>
+        <label>Velocidad/Sensibilidad: {parpadeoSpeed}s</label>
         <input
           type="range"
           min="0.01"
@@ -187,7 +190,14 @@ export default function ControlPanel({
           onClick={onApplyParpadeo}
           disabled={isPending || parpadeoColors.length < 2}
         >
-          Aplicar Parpadeo Personalizado
+          Aplicar Parpadeo Manual
+        </button>
+        {/* NUEVO BOTÓN */}
+        <button
+          onClick={onApplyRitmoInteractivo}
+          disabled={isPending || parpadeoColors.length < 2}
+        >
+          Activar Ritmo Interactivo
         </button>
       </div>
 

@@ -48,8 +48,15 @@ type DashboardClientProps = {
   liberarCeldasAction: (celdaIds: number[]) => Promise<ActionResponse>;
   applyLetraAction: (celdaId: number, letra: string) => Promise<ActionResponse>;
   liberarMatrizAction: (matrizId: number) => Promise<ActionResponse>;
-  applyTextoToMatrizAction: (matrizId: number, texto: string) => Promise<ActionResponse>;
+  applyTextoToMatrizAction: (
+    matrizId: number,
+    texto: string
+  ) => Promise<ActionResponse>;
   applyParpadeoPersonalizadoAction: (
+    colors: string[],
+    speed: number
+  ) => Promise<ActionResponse>;
+  applyRitmoInteractivoAction: (
     colors: string[],
     speed: number
   ) => Promise<ActionResponse>;
@@ -77,6 +84,7 @@ export default function DashboardClient({
   liberarMatrizAction,
   applyTextoToMatrizAction,
   applyParpadeoPersonalizadoAction,
+  applyRitmoInteractivoAction,
   applyFlashFisicoAction,
   applyCombinedEffectAction,
 }: DashboardClientProps) {
@@ -166,7 +174,6 @@ export default function DashboardClient({
 
   const handleCeldaClick = (celdaId: number) => {
     const newSelection = new Set(selectedCeldas);
-    // CORRECCIÓN: Se cambia el ternario por un if/else para evitar la advertencia de ESLint.
     if (newSelection.has(celdaId)) {
       newSelection.delete(celdaId);
     } else {
@@ -254,6 +261,16 @@ export default function DashboardClient({
     }
     startTransition(async () => {
       await applyParpadeoPersonalizadoAction(parpadeoColors, parpadeoSpeed);
+    });
+  };
+
+  const handleApplyRitmoInteractivo = () => {
+    if (parpadeoColors.length < 2) {
+      alert("Necesitas al menos 2 colores para el efecto de ritmo.");
+      return;
+    }
+    startTransition(async () => {
+      await applyRitmoInteractivoAction(parpadeoColors, parpadeoSpeed);
     });
   };
 
@@ -475,6 +492,7 @@ export default function DashboardClient({
           parpadeoSpeed={parpadeoSpeed}
           setParpadeoSpeed={setParpadeoSpeed}
           onApplyParpadeo={handleApplyParpadeo}
+          onApplyRitmoInteractivo={handleApplyRitmoInteractivo}
           flashSpeed={flashSpeed}
           setFlashSpeed={setFlashSpeed}
           onApplyFlash={handleApplyFlash}
