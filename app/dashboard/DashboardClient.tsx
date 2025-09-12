@@ -22,7 +22,7 @@ type Celda = {
 type ParpadeoConfig = { colors: string[]; speed: number };
 type FlashConfig = { speed: number };
 
-// CORRECCIÓN: Tipo para estandarizar la respuesta de las acciones del servidor
+// Tipo para estandarizar la respuesta de las acciones del servidor
 type ActionResponse = {
   success?: boolean;
   error?: string;
@@ -32,6 +32,7 @@ type ActionResponse = {
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
+  initialAudioFiles: string[];
   initialParpadeoConfig: ParpadeoConfig;
   initialFlashConfig: FlashConfig;
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
@@ -72,6 +73,7 @@ type DashboardClientProps = {
 export default function DashboardClient({
   initialMatrices,
   initialEfectos,
+  initialAudioFiles,
   initialParpadeoConfig,
   initialFlashConfig,
   getCeldasAction,
@@ -117,7 +119,7 @@ export default function DashboardClient({
   const [flashSpeed, setFlashSpeed] = useState<number>(
     initialFlashConfig.speed
   );
-  const [audioUrl, setAudioUrl] = useState("/fire_alarm.mp3");
+  const [audioUrl, setAudioUrl] = useState(initialAudioFiles[0] || "");
 
   useEffect(() => {
     const storedPassword = localStorage.getItem("dashboard_auth_key");
@@ -263,7 +265,7 @@ export default function DashboardClient({
       await applyParpadeoPersonalizadoAction(parpadeoColors, parpadeoSpeed);
     });
   };
-
+  
   const handleApplyRitmoInteractivo = () => {
     if (parpadeoColors.length < 2) {
       alert("Necesitas al menos 2 colores para el efecto de ritmo.");
@@ -498,6 +500,7 @@ export default function DashboardClient({
           onApplyFlash={handleApplyFlash}
           audioUrl={audioUrl}
           setAudioUrl={setAudioUrl}
+          audioFiles={initialAudioFiles}
           onApplyAudio={handleApplyAudio}
           onApplyCombinedEffect={handleApplyCombinedEffect}
         />

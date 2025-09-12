@@ -26,12 +26,13 @@ type Props = {
   parpadeoSpeed: number;
   setParpadeoSpeed: (speed: number) => void;
   onApplyParpadeo: () => void;
-  onApplyRitmoInteractivo: () => void; // <-- NUEVA PROP
+  onApplyRitmoInteractivo: () => void;
   flashSpeed: number;
   setFlashSpeed: (speed: number) => void;
   onApplyFlash: () => void;
   audioUrl: string;
   setAudioUrl: (url: string) => void;
+  audioFiles: string[];
   onApplyAudio: () => void;
   onApplyCombinedEffect: () => void;
 };
@@ -58,12 +59,13 @@ export default function ControlPanel({
   parpadeoSpeed,
   setParpadeoSpeed,
   onApplyParpadeo,
-  onApplyRitmoInteractivo, // <-- NUEVA PROP
+  onApplyRitmoInteractivo,
   flashSpeed,
   setFlashSpeed,
   onApplyFlash,
   audioUrl,
   setAudioUrl,
+  audioFiles,
   onApplyAudio,
   onApplyCombinedEffect,
 }: Props) {
@@ -88,7 +90,7 @@ export default function ControlPanel({
       e.nombre_css !== "flash-fisico-regulable" &&
       e.nombre_css !== "reproducir-audio" &&
       e.nombre_css !== "combinado" &&
-      e.nombre_css !== "ritmo-interactivo" // Ocultamos también el nuevo
+      e.nombre_css !== "ritmo-interactivo"
   );
 
   return (
@@ -99,7 +101,7 @@ export default function ControlPanel({
         <h3>Efecto Combinado</h3>
         <button
           onClick={onApplyCombinedEffect}
-          disabled={isPending || parpadeoColors.length < 2}
+          disabled={isPending || parpadeoColors.length < 2 || audioFiles.length === 0}
           className="btn-danger"
         >
           Activar Efecto Combinado
@@ -127,13 +129,27 @@ export default function ControlPanel({
 
       <div className="control-group">
         <h3>Audio en Bucle</h3>
-        <input
-          type="text"
-          placeholder="URL del audio"
-          value={audioUrl}
-          onChange={(e) => setAudioUrl(e.target.value)}
-        />
-        <button onClick={onApplyAudio} disabled={isPending}>
+        {audioFiles.length > 0 ? (
+          <select
+            value={audioUrl}
+            onChange={(e) => setAudioUrl(e.target.value)}
+          >
+            {audioFiles.map((file) => (
+              <option key={file} value={file}>
+                {/* CORRECCIÓN: Se muestra el nombre del archivo con la barra. */}
+                {file}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+            No se encontraron archivos .mp3 en la carpeta /public.
+          </p>
+        )}
+        <button
+          onClick={onApplyAudio}
+          disabled={isPending || audioFiles.length === 0}
+        >
           Reproducir Audio
         </button>
       </div>
@@ -192,7 +208,6 @@ export default function ControlPanel({
         >
           Aplicar Parpadeo Manual
         </button>
-        {/* NUEVO BOTÓN */}
         <button
           onClick={onApplyRitmoInteractivo}
           disabled={isPending || parpadeoColors.length < 2}

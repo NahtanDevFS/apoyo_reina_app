@@ -3,6 +3,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { promises as fs } from 'fs';
+import path from "path";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,6 +19,25 @@ const updateTimestamp = async () => {
     .update({ efecto_timestamp: now })
     .eq("id", 1);
 };
+
+// NUEVA FUNCIÓN PARA OBTENER LOS ARCHIVOS DE AUDIO
+export async function getAudioFiles() {
+  try {
+    // Apunta al directorio 'public' del proyecto
+    const publicDir = path.join(process.cwd(), 'public');
+    const filenames = await fs.readdir(publicDir);
+    
+    // Filtra solo los archivos .mp3 y formatea la ruta para la URL
+    const mp3Files = filenames
+      .filter((filename) => filename.endsWith('.mp3'))
+      .map((filename) => `/${filename}`); 
+      
+    return { success: true, files: mp3Files };
+  } catch (error) {
+    console.error("Error al leer los archivos de audio:", error);
+    return { success: false, error: "No se pudieron cargar los archivos de audio.", files: [] };
+  }
+}
 
 export async function syncPredefinedEfectos() {
   const predefinedEfectos = [
