@@ -1,16 +1,23 @@
-// app/dashboard/MatrixSelectionPanel.tsx
+// app/dashboard/placeholder.tsx
 "use client";
 
 // Tipos (puedes moverlos a un archivo types.ts si prefieres)
 type Matriz = { id: number; nombre: string; filas: number; columnas: number };
+
+// CORRECCIÓN: Tipo para la respuesta de la acción del servidor
+type ActionResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
 
 type Props = {
   matrices: Matriz[];
   selectedMatrizId: number | null;
   onSelectMatriz: (id: number) => void;
   // Pasaremos las acciones del servidor como props
-  createMatrizAction: (formData: FormData) => Promise<any>;
-  syncEfectosAction: () => Promise<any>;
+  createMatrizAction: (formData: FormData) => Promise<ActionResponse>;
+  syncEfectosAction: () => Promise<ActionResponse>;
 };
 
 export default function MatrixSelectionPanel({
@@ -39,7 +46,12 @@ export default function MatrixSelectionPanel({
       {/* Aquí podrías poner los formularios dentro de un acordeón */}
       <div style={{ marginTop: '2rem' }}>
         <h3>Gestión</h3>
-        <form action={createMatrizAction} style={{ marginBottom: '1rem' }}>
+        <form
+          action={async (formData: FormData) => {
+            await createMatrizAction(formData);
+          }}
+          style={{ marginBottom: '1rem' }}
+        >
           <h4>Crear Nueva Matriz</h4>
           <input name="nombre" placeholder="Nombre de la Matriz" required />
           <input name="filas" type="number" placeholder="Filas" required />

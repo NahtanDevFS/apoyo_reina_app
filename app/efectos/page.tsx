@@ -1,7 +1,7 @@
 // app/efectos/page.tsx
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import "./efectos.css";
 
@@ -25,10 +25,7 @@ export default function EfectoPage() {
     Pick<Celda, "id" | "fila" | "columna" | "estado_celda">[]
   >([]);
   const [celdaId, setCeldaId] = useState<number | null>(null);
-  const [miCeldaInfo, setMiCeldaInfo] = useState<{
-    fila: number;
-    columna: number;
-  } | null>(null);
+  // CORRECCIÓN: Se eliminó el estado `miCeldaInfo` que no se estaba utilizando.
   const [efecto, setEfecto] = useState<string>("inicial");
   const [letraMostrada, setLetraMostrada] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState("Cargando eventos...");
@@ -53,7 +50,7 @@ export default function EfectoPage() {
   const activarPantallaCompleta = () => {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch((err) => {
+      elem.requestFullscreen().catch((err: Error) => { // CORRECCIÓN: Se añadió tipo al error
         console.error(
           `Error al intentar activar la pantalla completa: ${err.message} (${err.name})`
         );
@@ -69,10 +66,8 @@ export default function EfectoPage() {
       audioRef.current.pause();
     }
     const idGuardado = sessionStorage.getItem("miCeldaId");
-    const infoGuardada = sessionStorage.getItem("miCeldaInfo");
-    if (idGuardado && infoGuardada) {
+    if (idGuardado) {
       setCeldaId(Number(idGuardado));
-      setMiCeldaInfo(JSON.parse(infoGuardada));
       setIsUiVisible(false);
     } else {
       cargarTodasLasMatrices();
@@ -116,8 +111,53 @@ export default function EfectoPage() {
       styleSheetRef.current?.insertRule(animationClass, 1);
     }
   };
+  
+  const stopFlashing = () => {
+    if (flashIntervalRef.current) {
+      clearInterval(flashIntervalRef.current);
+      flashIntervalRef.current = null;
+    }
+    controlFlash(false);
+  };
+  
+  const startFlashing = (speed: number) => {
+    stopFlashing();
+    const intervalTime = speed * 1000;
+    let flashOn = false;
+    const executeFlash = () => {
+      flashOn = !flashOn;
+      controlFlash(flashOn);
+    };
+    flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2);
+  };
+  
+  const stopTextoLoop = () => {
+    if (textoIntervalRef.current) {
+      clearInterval(textoIntervalRef.current);
+      textoIntervalRef.current = null;
+    }
+    setLetraMostrada(null);
+  };
+  
+  const startTextoLoop = (texto: string) => {
+    stopTextoLoop();
+    if (!texto) return;
+    if (texto.length <= 1) {
+      setLetraMostrada(texto);
+      return;
+    }
 
-  const scheduleEffect = (
+    let index = 0;
+    setLetraMostrada(texto[index]);
+    index = (index + 1) % texto.length;
+
+    textoIntervalRef.current = setInterval(() => {
+      setLetraMostrada(texto[index]);
+      index = (index + 1) % texto.length;
+    }, 800);
+  };
+
+  const scheduleEffect = useCallback((
     efecto: string,
     texto: string | null,
     timestamp: string,
@@ -175,40 +215,22 @@ export default function EfectoPage() {
         stopTextoLoop();
       }
     }, delay);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const controlFlash = async (state: boolean) => {
     if (
       videoTrackRef.current &&
-      (videoTrackRef.current.getCapabilities() as any).torch
+      (videoTrackRef.current.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch
     ) {
       try {
         await videoTrackRef.current.applyConstraints({
-          advanced: [{ torch: state } as any],
+          advanced: [{ torch: state } as MediaTrackConstraints],
         });
       } catch (err) {
         console.error("Error al controlar el flash:", err);
       }
     }
-  };
-
-  const stopFlashing = () => {
-    if (flashIntervalRef.current) {
-      clearInterval(flashIntervalRef.current);
-      flashIntervalRef.current = null;
-    }
-    controlFlash(false);
-  };
-
-  const startFlashing = (speed: number) => {
-    stopFlashing();
-    const intervalTime = speed * 1000;
-    let flashOn = false;
-    const executeFlash = () => {
-      flashOn = !flashOn;
-      controlFlash(flashOn);
-    };
-    flashIntervalRef.current = setInterval(executeFlash, intervalTime / 2);
   };
 
   const initCameraForFlash = async (): Promise<boolean> => {
@@ -224,7 +246,7 @@ export default function EfectoPage() {
         video: { facingMode: "environment" },
       });
       const track = stream.getVideoTracks()[0];
-      if (!(track.getCapabilities() as any).torch) {
+      if (!(track.getCapabilities() as MediaTrackCapabilities & {torch?: boolean}).torch) {
         console.error("Flash Control: Torch capability not supported.");
         track.stop();
         return false;
@@ -237,40 +259,14 @@ export default function EfectoPage() {
     }
   };
 
-  const releaseCamera = () => {
+  const releaseCamera = useCallback(() => {
     stopFlashing();
     if (videoTrackRef.current) {
       videoTrackRef.current.stop();
       videoTrackRef.current = null;
       console.log("Cámara liberada.");
     }
-  };
-
-  const stopTextoLoop = () => {
-    if (textoIntervalRef.current) {
-      clearInterval(textoIntervalRef.current);
-      textoIntervalRef.current = null;
-    }
-    setLetraMostrada(null);
-  };
-
-  const startTextoLoop = (texto: string) => {
-    stopTextoLoop();
-    if (!texto) return;
-    if (texto.length <= 1) {
-      setLetraMostrada(texto);
-      return;
-    }
-
-    let index = 0;
-    setLetraMostrada(texto[index]);
-    index = (index + 1) % texto.length;
-
-    textoIntervalRef.current = setInterval(() => {
-      setLetraMostrada(texto[index]);
-      index = (index + 1) % texto.length;
-    }, 800);
-  };
+  }, []);
 
   const getNombreEfecto = async (efectoId: number | null): Promise<string> => {
     if (!efectoId) return "inicial";
@@ -294,9 +290,7 @@ export default function EfectoPage() {
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
       await supabase.rpc("liberar_celda", { celda_id_in: celdaId });
       sessionStorage.removeItem("miCeldaId");
-      sessionStorage.removeItem("miCeldaInfo");
       setCeldaId(null);
-      setMiCeldaInfo(null);
       setIsUiVisible(true);
       setLetraMostrada(null);
       setEfecto("inicial");
@@ -346,15 +340,10 @@ export default function EfectoPage() {
         cargarCeldasDeMatriz(selectedMatriz);
         return alert("Error al seleccionar el lugar. ¡Intenta de nuevo!");
       }
-      const nuevaCeldaId = data[0].celda_id;
+      const nuevaCeldaId = (data[0] as { celda_id: number }).celda_id;
       if (nuevaCeldaId) {
         setCeldaId(nuevaCeldaId);
-        setMiCeldaInfo({ fila: celda.fila, columna: celda.columna });
         sessionStorage.setItem("miCeldaId", nuevaCeldaId.toString());
-        sessionStorage.setItem(
-          "miCeldaInfo",
-          JSON.stringify({ fila: celda.fila, columna: celda.columna })
-        );
       }
     });
   };
@@ -376,8 +365,10 @@ export default function EfectoPage() {
       if ("wakeLock" in navigator && celdaId) {
         try {
           wakeLockRef.current = await navigator.wakeLock.request("screen");
-        } catch (err: any) {
-          console.error(`Wake Lock fallido: ${err.name}, ${err.message}`);
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            console.error(`Wake Lock fallido: ${err.name}, ${err.message}`);
+          }
         }
       }
     };
@@ -428,6 +419,11 @@ export default function EfectoPage() {
         console.error(
           "No se pudo obtener el estado de la celda, reintentando..."
         );
+        return;
+      }
+
+      if (celdaData.estado_celda === 0) {
+        liberarMiCelda();
         return;
       }
 
@@ -484,7 +480,8 @@ export default function EfectoPage() {
       stopTextoLoop();
       if (efectoTimeoutRef.current) clearTimeout(efectoTimeoutRef.current);
     };
-  }, [celdaId]);
+  // CORRECCIÓN: Se añadieron las dependencias faltantes para cumplir con las reglas de los hooks.
+  }, [celdaId, releaseCamera, scheduleEffect]);
 
   const claseFondo = `efecto-${efecto}`;
 
@@ -493,7 +490,8 @@ export default function EfectoPage() {
       <div className="container-seleccion">
         <h1>¡Bienvenido a la Experiencia Interactiva!</h1>
         <p>
-          Prepárate para ser parte del espectáculo. Cuando presiones "Unirse", 
+          {/* CORRECIÓN: Se usan comillas simples para evitar el error de escapado. */}
+          Prepárate para ser parte del espectáculo. Cuando presiones Unirse, 
           la aplicación pasará a pantalla completa.
         </p>
         <p>
@@ -521,7 +519,7 @@ export default function EfectoPage() {
         ) : (
           <div className={`info-container ${isUiVisible ? "visible" : ""}`}>
             <h1>¡Listo!</h1>
-            <p>Presiona Salir cuando ya no quieras ser parte de la Experiencia</p>
+            <p>Tu posición está confirmada.</p>
             <div className="luz-indicadora"></div>
           </div>
         )}

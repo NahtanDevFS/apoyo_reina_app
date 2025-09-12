@@ -22,37 +22,44 @@ type Celda = {
 type ParpadeoConfig = { colors: string[]; speed: number };
 type FlashConfig = { speed: number };
 
+// CORRECCIÓN: Tipo para estandarizar la respuesta de las acciones del servidor
+type ActionResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+};
+
 type DashboardClientProps = {
   initialMatrices: Matriz[];
   initialEfectos: Efecto[];
   initialParpadeoConfig: ParpadeoConfig;
   initialFlashConfig: FlashConfig;
   getCeldasAction: (matrizId: number) => Promise<Celda[] | null>;
-  createMatrizAction: (formData: FormData) => Promise<any>;
-  syncEfectosAction: () => Promise<any>;
+  createMatrizAction: (formData: FormData) => Promise<ActionResponse>;
+  syncEfectosAction: () => Promise<ActionResponse>;
   applyEfectoAction: (
     celdaIds: number[],
     efectoId: number | null
-  ) => Promise<any>;
+  ) => Promise<ActionResponse>;
   applyGlobalEfectoAction: (
     nombreEfecto: string,
     audioUrl?: string
-  ) => Promise<any>;
-  liberarCeldasAction: (celdaIds: number[]) => Promise<any>;
-  applyLetraAction: (celdaId: number, letra: string) => Promise<any>;
-  liberarMatrizAction: (matrizId: number) => Promise<any>;
-  applyTextoToMatrizAction: (matrizId: number, texto: string) => Promise<any>;
+  ) => Promise<ActionResponse>;
+  liberarCeldasAction: (celdaIds: number[]) => Promise<ActionResponse>;
+  applyLetraAction: (celdaId: number, letra: string) => Promise<ActionResponse>;
+  liberarMatrizAction: (matrizId: number) => Promise<ActionResponse>;
+  applyTextoToMatrizAction: (matrizId: number, texto: string) => Promise<ActionResponse>;
   applyParpadeoPersonalizadoAction: (
     colors: string[],
     speed: number
-  ) => Promise<any>;
-  applyFlashFisicoAction: (speed: number) => Promise<any>;
+  ) => Promise<ActionResponse>;
+  applyFlashFisicoAction: (speed: number) => Promise<ActionResponse>;
   applyCombinedEffectAction: (
     audioUrl: string,
     flashSpeed: number,
     parpadeoColors: string[],
     parpadeoSpeed: number
-  ) => Promise<any>;
+  ) => Promise<ActionResponse>;
 };
 
 export default function DashboardClient({
@@ -159,9 +166,12 @@ export default function DashboardClient({
 
   const handleCeldaClick = (celdaId: number) => {
     const newSelection = new Set(selectedCeldas);
-    newSelection.has(celdaId)
-      ? newSelection.delete(celdaId)
-      : newSelection.add(celdaId);
+    // CORRECCIÓN: Se cambia el ternario por un if/else para evitar la advertencia de ESLint.
+    if (newSelection.has(celdaId)) {
+      newSelection.delete(celdaId);
+    } else {
+      newSelection.add(celdaId);
+    }
     setSelectedCeldas(newSelection);
   };
 
@@ -386,10 +396,14 @@ export default function DashboardClient({
     await stopWave();
 
     if (efectoCss.startsWith("ola-")) {
-      startTransition(() => applyGlobalEfectoAction(efectoCss));
+      startTransition(async () => {
+        await applyGlobalEfectoAction(efectoCss);
+      });
       startWave(efectoCss);
     } else {
-      startTransition(() => applyGlobalEfectoAction(efectoCss));
+      startTransition(async () => {
+        await applyGlobalEfectoAction(efectoCss);
+      });
     }
   };
 
