@@ -63,7 +63,7 @@ export default function EfectoPage() {
   const styleSheetRef = useRef<CSSStyleSheet | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const SYNCHRONIZATION_DELAY_MS = 2000;
+  const SYNCHRONIZATION_DELAY_MS = 1000;
   
   const activarPantallaCompleta = () => {
     const elem = document.documentElement;
